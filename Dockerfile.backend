@@ -1,0 +1,24 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install Docker CLI
+RUN apk add --no-cache docker-cli
+
+# Copy package files
+COPY backend/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY backend/ .
+
+# Install tsx globally for development
+RUN npm install -g tsx
+
+# Expose port
+EXPOSE 3001
+
+# Start the server
+CMD ["tsx", "watch", "src/server.ts"]

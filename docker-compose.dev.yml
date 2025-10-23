@@ -1,0 +1,79 @@
+services:
+  # Frontend React App (Development Mode)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://backend:3001
+      - REACT_APP_OSV_API_URL=https://api.osv.dev
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - /app/node_modules
+
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - ZAP_API_URL=http://zap:8080
+      - OSV_API_URL=https://api.osv.dev
+      - SEMGREP_API_KEY=${SEMGREP_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    depends_on:
+      - zap
+      - redis
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # OWASP ZAP Scanner
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    ports:
+      - "8082:8080"
+    environment:
+      - ZAP_PORT=8080
+    volumes:
+      - zap-data:/zap/wrk
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/JSON/core/view/version/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Trivy vulnerability scanner
+  trivy:
+    image: aquasec/trivy:latest
+    ports:
+      - "8081:8080"
+    command: server --listen 0.0.0.0:8080
+    volumes:
+      - trivy-cache:/root/.cache/trivy
+
+  # Redis for job queue and caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  zap-data:
+  redis-data:
+  trivy-cache:
