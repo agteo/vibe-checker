@@ -10,11 +10,7 @@ interface PoliciesPageProps {
 }
 
 const ModeBadge: React.FC<{ mode: ScanMode }> = ({ mode }) => {
-    const color = {
-        [ScanMode.Safe]: 'bg-green-600 text-white',
-        [ScanMode.Aggressive]: 'bg-red-600 text-white',
-    }[mode];
-    return <span className={`px-2.5 py-1 text-xs font-semibold rounded-full capitalize ${color}`}>{mode}</span>
+    return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-600 text-white">Passive (Non-Intrusive)</span>
 };
 
 const PolicyHelpSection: React.FC = () => {

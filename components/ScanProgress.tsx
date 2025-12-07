@@ -21,6 +21,7 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
   const [expandedScans, setExpandedScans] = useState<Set<string>>(new Set());
   const [detailedProgress, setDetailedProgress] = useState<Record<string, any>>({});
   const [tipsVisible, setTipsVisible] = useState(false);
+  const [timeoutAlerts, setTimeoutAlerts] = useState<Set<string>>(new Set());
 
   // Debug logging
   useEffect(() => {
@@ -36,6 +37,28 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
         if (scan.status === 'running' || scan.status === 'queued') {
           console.log('Polling scan status for:', scan.jobId, 'current status:', scan.status);
           
+          // Check for timeout
+          if (scan.status === 'running' && scan.startedAt && scan.estimatedDuration) {
+            const elapsed = (Date.now() - new Date(scan.startedAt).getTime()) / 1000;
+            const timeoutThreshold = scan.estimatedDuration * 1.5; // 50% over estimated time
+            
+            if (elapsed > timeoutThreshold && !timeoutAlerts.has(scan.jobId)) {
+              console.warn(`Scan ${scan.jobId} has exceeded timeout threshold`);
+              setTimeoutAlerts(prev => new Set(prev).add(scan.jobId));
+              
+              // Show timeout alert
+              if ((window as any).addNotification) {
+                (window as any).addNotification(
+                  `⚠️ Scan ${scan.jobId.split('_')[1]} is taking longer than expected. It may have timed out.`,
+                  'warning',
+                  10000
+                );
+              } else {
+                alert(`⚠️ Scan Timeout Warning\n\nScan ${scan.jobId} has been running for ${Math.floor(elapsed / 60)} minutes, which exceeds the estimated duration of ${Math.floor(scan.estimatedDuration / 60)} minutes.\n\nThe scan may have timed out or encountered an issue. Please check the scan status.`);
+              }
+            }
+          }
+          
           // Get detailed progress for running scans
           if (scan.status === 'running') {
             getScanProgress(scan.jobId).then(progressData => {
@@ -47,6 +70,13 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
               }
             }).catch(error => {
               console.error('Error getting detailed progress:', error);
+              // If we can't get progress, it might be a timeout
+              if (scan.startedAt) {
+                const elapsed = (Date.now() - new Date(scan.startedAt).getTime()) / 1000;
+                if (elapsed > 300 && !timeoutAlerts.has(scan.jobId)) { // 5 minutes without progress
+                  setTimeoutAlerts(prev => new Set(prev).add(scan.jobId));
+                }
+              }
             });
           }
           
@@ -54,6 +84,12 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
             console.log('Polling result for', scan.jobId, ':', result);
             if (result && (result.status === 'completed' || result.status === 'failed')) {
               console.log('Scan completed, should update UI');
+              // Clear timeout alert if scan completed
+              setTimeoutAlerts(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(scan.jobId);
+                return newSet;
+              });
               // Call onScanComplete to refresh findings
               if (onScanComplete) {
                 console.log('Calling onScanComplete to refresh findings');
@@ -62,13 +98,20 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
             }
           }).catch(error => {
             console.error('Polling error for', scan.jobId, ':', error);
+            // Network errors might indicate timeout
+            if (scan.startedAt) {
+              const elapsed = (Date.now() - new Date(scan.startedAt).getTime()) / 1000;
+              if (elapsed > 600 && !timeoutAlerts.has(scan.jobId)) { // 10 minutes with errors
+                setTimeoutAlerts(prev => new Set(prev).add(scan.jobId));
+              }
+            }
           });
         }
       });
     }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(interval);
-  }, [activeScans, refreshScanStatus, getScanProgress]);
+  }, [activeScans, refreshScanStatus, getScanProgress, timeoutAlerts]);
 
   // Removed auto-cleanup - scans will persist until manually removed
   // Users can manually remove scans if needed
@@ -266,6 +309,13 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
 
                 {scan.status === 'running' && scan.startedAt && (
                   <div className="mt-3">
+                    {/* Timeout Warning */}
+                    {timeoutAlerts.has(scan.jobId) && (
+                      <div className="mb-3 p-2 bg-yellow-900/30 border border-yellow-600/50 rounded text-xs text-yellow-200">
+                        ⚠️ <strong>Timeout Warning:</strong> This scan is taking longer than expected. It may have timed out or encountered an issue.
+                      </div>
+                    )}
+                    
                     <div className="flex justify-between items-center mb-2">
                       <div className="text-xs text-gray-500">
                         {formatDuration(scan.startedAt, scan.estimatedDuration)}
@@ -275,15 +325,31 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
                       </div>
                     </div>
                     
-                    {/* Enhanced Progress Bar */}
-                    <div className="w-full bg-gray-600 rounded-full h-2 mb-2">
+                    {/* Enhanced Progress Bar with Loading Animation */}
+                    <div className="w-full bg-gray-600 rounded-full h-2 mb-2 relative overflow-hidden">
                       <div 
                         className="bg-gradient-to-r from-blue-400 to-blue-500 h-2 rounded-full transition-all duration-1000"
                         style={{
-                          width: `${getProgressDetails(scan).percentage}%`
+                          width: `${Math.min(100, getProgressDetails(scan).percentage)}%`
                         }}
                       ></div>
+                      {getProgressDetails(scan).percentage < 100 && (
+                        <div 
+                          className="absolute inset-0"
+                          style={{
+                            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+                            animation: 'shimmer 2s infinite',
+                            transform: 'translateX(-100%)'
+                          }}
+                        ></div>
+                      )}
                     </div>
+                    <style>{`
+                      @keyframes shimmer {
+                        0% { transform: translateX(-100%); }
+                        100% { transform: translateX(100%); }
+                      }
+                    `}</style>
                     
                     {/* Detailed Progress Information */}
                     <div className="grid grid-cols-2 gap-2 text-xs">

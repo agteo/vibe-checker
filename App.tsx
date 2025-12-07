@@ -7,7 +7,7 @@ import { PoliciesPage } from './pages/PoliciesPage';
 import { FindingsPage } from './pages/FindingsPage';
 import { AdminPage } from './pages/AdminPage';
 import { ReportsPage } from './pages/ReportsPage';
-import { TargetApp, ScanPolicy, Finding, ScanJob, AuditLog } from './types';
+import { TargetApp, ScanPolicy, Finding, ScanJob, AuditLog, FindingSeverity } from './types';
 import { useFindings, useTargets, usePolicies } from './src/hooks/useApi';
 import { NotificationManager } from './components/Notification';
 
@@ -17,6 +17,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
   const [scanJobs, setScanJobs] = useState<ScanJob[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [findingsFilter, setFindingsFilter] = useState<{ severity?: FindingSeverity; status?: string } | undefined>();
   
   // Use API hooks to fetch data
   const { findings, loading: findingsLoading, error: findingsError, refetch: refetchFindings } = useFindings();
@@ -44,21 +45,39 @@ function App() {
       );
     }
 
+    // Helper function to navigate to Findings page with filter
+    const navigateToFindings = (filter?: { severity?: FindingSeverity; status?: string }) => {
+      setFindingsFilter(filter);
+      setCurrentPage('Findings');
+    };
+
     switch (currentPage) {
       case 'Dashboard':
-        return <DashboardPage findings={findings || []} scanJobs={scanJobs} targets={targets || []} onScanComplete={refetchFindings} />;
+        return <DashboardPage 
+          findings={findings || []} 
+          scanJobs={scanJobs} 
+          targets={targets || []} 
+          onScanComplete={refetchFindings}
+          onNavigateToFindings={navigateToFindings}
+        />;
       case 'Targets':
         return <TargetsPage targets={targets || []} policies={policies || []} onScanComplete={refetchFindings} />;
       case 'Policies':
         return <PoliciesPage policies={policies || []} />;
       case 'Findings':
-        return <FindingsPage findings={findings || []} />;
+        return <FindingsPage findings={findings || []} initialFilter={findingsFilter} />;
       case 'Admin':
         return <AdminPage auditLogs={auditLogs} />;
       case 'Reports':
         return <ReportsPage findings={findings || []} targets={targets || []} scanJobs={scanJobs} />;
       default:
-        return <DashboardPage findings={findings || []} scanJobs={scanJobs} targets={targets || []} onScanComplete={refetchFindings} />;
+        return <DashboardPage 
+          findings={findings || []} 
+          scanJobs={scanJobs} 
+          targets={targets || []} 
+          onScanComplete={refetchFindings}
+          onNavigateToFindings={navigateToFindings}
+        />;
     }
   };
 

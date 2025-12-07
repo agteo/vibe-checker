@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: trivy-scanner
+  namespace: security-services
+  labels:
+    app: trivy-scanner
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: trivy-scanner
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trivy-scanner
+  namespace: security-services
+  labels:
+    app: trivy-scanner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trivy-scanner
+  template:
+    metadata:
+      labels:
+        app: trivy-scanner
+    spec:
+      containers:
+      - name: trivy-scanner
+        image: aquasec/trivy:latest
+        ports:
+        - containerPort: 8080
+        command:
+        - trivy
+        - server
+        - --listen
+        - 0.0.0.0:8080
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: trivy-cache
+          mountPath: /root/.cache/trivy
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: trivy-cache
+        persistentVolumeClaim:
+          claimName: trivy-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: trivy-pvc
+  namespace: security-services
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard

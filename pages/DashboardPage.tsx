@@ -10,6 +10,7 @@ interface DashboardPageProps {
     scanJobs: ScanJob[];
     targets: TargetApp[];
     onScanComplete?: () => void;
+    onNavigateToFindings?: (filter?: { severity?: FindingSeverity; status?: string }) => void;
 }
 
 const JOB_STATUS_COLORS: { [key in JobStatus]: string } = {
@@ -20,14 +21,29 @@ const JOB_STATUS_COLORS: { [key in JobStatus]: string } = {
   [JobStatus.Cancelled]: 'bg-yellow-600',
 };
 
-const StatCard: React.FC<{ title: string; value: string | number; color: string }> = ({ title, value, color }) => (
-    <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
+interface StatCardProps {
+    title: string;
+    value: string | number;
+    color: string;
+    onClick?: () => void;
+    clickable?: boolean;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ title, value, color, onClick, clickable = false }) => (
+    <div 
+        className={`bg-gray-800 p-6 rounded-xl shadow-lg ${clickable ? 'cursor-pointer hover:bg-gray-700 transition-colors' : ''}`}
+        onClick={onClick}
+        title={clickable ? `Click to view ${title.toLowerCase()}` : undefined}
+    >
         <p className="text-sm font-medium text-gray-400">{title}</p>
         <p className={`text-3xl font-bold mt-2 ${color}`}>{value}</p>
+        {clickable && (
+            <p className="text-xs text-gray-500 mt-2">Click to view details →</p>
+        )}
     </div>
 );
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ findings, scanJobs, targets, onScanComplete }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({ findings, scanJobs, targets, onScanComplete, onNavigateToFindings }) => {
     const criticalFindings = findings.filter(f => f.severity === FindingSeverity.Critical).length;
     const highRiskTargets = targets.filter(t => t.riskTier === RiskTier.High).length;
     const runningScans = scanJobs.filter(j => j.status === JobStatus.Running).length;
@@ -86,10 +102,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ findings, scanJobs
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard title="Open Findings" value={openFindings} color="text-white" />
-                <StatCard title="Critical Findings" value={criticalFindings} color="text-critical" />
-                <StatCard title="High Risk Targets" value={highRiskTargets} color="text-high" />
-                <StatCard title="Running Scans" value={activeScans.length} color="text-blue-400" />
+                <StatCard 
+                    title="Open Findings" 
+                    value={openFindings} 
+                    color="text-white" 
+                    clickable={!!onNavigateToFindings && openFindings > 0}
+                    onClick={() => onNavigateToFindings?.({ status: 'open' })}
+                />
+                <StatCard 
+                    title="Critical Findings" 
+                    value={criticalFindings} 
+                    color="text-critical"
+                    clickable={!!onNavigateToFindings && criticalFindings > 0}
+                    onClick={() => onNavigateToFindings?.({ severity: FindingSeverity.Critical })}
+                />
+                <StatCard 
+                    title="High Risk Targets" 
+                    value={highRiskTargets} 
+                    color="text-high" 
+                />
+                <StatCard 
+                    title="Running Scans" 
+                    value={activeScans.length} 
+                    color="text-blue-400" 
+                />
             </div>
 
             {/* Active Scans Progress */}

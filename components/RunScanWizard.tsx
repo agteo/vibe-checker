@@ -106,8 +106,11 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({ isOpen, onClose, t
               );
             }
             
-            // Show success message
-            alert(`✅ Scan started successfully!\n\nJob ID: ${result.jobId}\nStatus: ${result.status}\nTools: ${result.tools?.join(', ') || 'N/A'}\n\nScan is running and will be monitored automatically.`);
+            // Show success message with estimated duration
+            const estimatedMinutes = result.estimatedDuration ? Math.ceil(result.estimatedDuration / 60) : 'unknown';
+            const modeInfo = '\n\n🛡️ Passive Mode: Non-intrusive scan - safe for production';
+            
+            alert(`✅ Scan started successfully!\n\nJob ID: ${result.jobId}\nStatus: ${result.status}\nTools: ${result.tools?.join(', ') || 'N/A'}\nEstimated Duration: ~${estimatedMinutes} minutes${modeInfo}\n\nScan is running and will be monitored automatically.`);
         } catch (error) {
             console.error('Failed to start scan:', error);
             alert(`❌ Failed to start scan:\n\n${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check the browser console for more details.`);
@@ -152,10 +155,32 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({ isOpen, onClose, t
                     <div className="bg-gray-700/50 p-4 rounded-lg">
                         <h4 className="font-bold text-gray-200 mb-2">Policy Details</h4>
                         <ul className="text-sm space-y-1">
-                            <li><span className="font-semibold text-gray-400">Mode:</span> {selectedPolicy.mode}</li>
+                            <li>
+                                <span className="font-semibold text-gray-400">Mode:</span>{' '}
+                                <span className="px-2 py-0.5 rounded text-xs bg-green-600/30 text-green-300">
+                                    🛡️ Passive (Non-Intrusive)
+                                </span>
+                            </li>
                             <li><span className="font-semibold text-gray-400">Rate Limit:</span> {selectedPolicy.maxReqPerMin} req/min</li>
+                            <li><span className="font-semibold text-gray-400">Spider Depth:</span> {selectedPolicy.spiderDepth}</li>
                             <li><span className="font-semibold text-gray-400">Tools:</span> {selectedPolicy.allowedTools.join(', ')}</li>
+                            {selectedPolicy.exclusions && selectedPolicy.exclusions.length > 0 && (
+                                <li>
+                                    <span className="font-semibold text-gray-400">Exclusions:</span>{' '}
+                                    <span className="text-yellow-300 text-xs">
+                                        {selectedPolicy.exclusions.length} pattern(s) configured
+                                    </span>
+                                </li>
+                            )}
                         </ul>
+                        <div className="mt-3 p-2 bg-green-900/20 border border-green-600/30 rounded text-xs text-green-200">
+                            ✅ Passive mode: Only spider and passive scanning. No intrusive tests will be performed. Safe for production.
+                        </div>
+                        {selectedPolicy.exclusions && selectedPolicy.exclusions.length > 0 && (
+                            <div className="mt-3 p-2 bg-yellow-900/20 border border-yellow-600/30 rounded text-xs text-yellow-200">
+                                🚫 {selectedPolicy.exclusions.length} URL exclusion pattern(s) will be applied to filter results.
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -189,22 +214,34 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({ isOpen, onClose, t
                         </label>
                     </div>
 
-                    {selectedPolicy?.mode === 'aggressive' && (
-                        <div className="mt-4 p-3 bg-red-900/20 border border-red-600/30 rounded">
-                            <p className="text-red-200 text-sm font-semibold">
-                                ⚠️ Aggressive Mode Warning: This scan may increase load and trigger WAF alerts. Use only on staging or with explicit approval.
-                            </p>
-                        </div>
-                    )}
                 </div>
 
                 {/* Show progress if scan is running */}
                 {showProgress && currentScanJobId && (
                     <div className="bg-blue-900/20 border border-blue-600/30 p-4 rounded-lg">
-                        <h4 className="font-bold text-blue-200 mb-3">Scan in Progress</h4>
+                        <h4 className="font-bold text-blue-200 mb-3 flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent mr-2"></div>
+                            Scan in Progress
+                        </h4>
                         <ScanProgress showDetails={true} />
                         <p className="text-sm text-blue-300 mt-2">
                             The scan is running in the background. You can close this dialog and monitor progress from the dashboard.
+                        </p>
+                        <p className="text-xs text-green-300 mt-2">
+                            🛡️ Passive mode active - non-intrusive scanning only
+                        </p>
+                    </div>
+                )}
+
+                {/* Loading state when starting scan */}
+                {isStarting && (
+                    <div className="bg-blue-900/20 border border-blue-600/30 p-4 rounded-lg">
+                        <div className="flex items-center justify-center space-x-3">
+                            <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-400 border-t-transparent"></div>
+                            <span className="text-blue-200 font-medium">Starting scan...</span>
+                        </div>
+                        <p className="text-xs text-blue-300 mt-2 text-center">
+                            Please wait while we initialize the security scan
                         </p>
                     </div>
                 )}

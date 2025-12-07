@@ -12,8 +12,7 @@ export enum RiskTier {
 }
 
 export enum ScanMode {
-  Safe = 'safe',
-  Aggressive = 'aggressive',
+  Passive = 'passive',
 }
 
 export enum JobStatus {
@@ -57,6 +56,8 @@ export interface ScanPolicy {
   maxReqPerMin: number;
   spiderDepth: number;
   allowedTools: string[];
+  exclusions?: string[];
+  description?: string;
 }
 
 export interface Finding {
@@ -69,6 +70,59 @@ export interface Finding {
   owaspTop10Tags: string[];
   location: string;
   firstSeenAt: string;
+  lastSeenAt?: string;
+  lastUpdatedAt?: string;
+  description?: string;
+  recommendation?: string;
+  priority?: FindingPriority;
+  urgency?: FindingUrgency;
+  actionPlan?: ActionStep[];
+  businessImpact?: string;
+  technicalImpact?: string;
+  remediationEffort?: RemediationEffort;
+  rule?: string;
+  confidence?: string;
+  risk?: string;
+  template?: string;
+  templateUrl?: string;
+  cve?: string;
+  tags?: string[];
+  rawResult?: any;
+}
+
+export enum FindingPriority {
+  P0 = 'p0', // Critical - Fix immediately
+  P1 = 'p1', // High - Fix within 24 hours
+  P2 = 'p2', // Medium - Fix within 1 week
+  P3 = 'p3', // Low - Fix within 1 month
+  P4 = 'p4', // Info - Monitor/Review
+}
+
+export enum FindingUrgency {
+  Immediate = 'immediate', // Fix now
+  High = 'high', // Fix today
+  Medium = 'medium', // Fix this week
+  Low = 'low', // Fix this month
+  Monitor = 'monitor', // Monitor only
+}
+
+export enum RemediationEffort {
+  Low = 'low', // < 1 hour
+  Medium = 'medium', // 1-8 hours
+  High = 'high', // 1-3 days
+  VeryHigh = 'very_high', // > 3 days
+}
+
+export interface ActionStep {
+  id: string;
+  title: string;
+  description: string;
+  priority: FindingPriority;
+  estimatedTime: string;
+  requiredSkills: string[];
+  resources: string[];
+  dependencies?: string[];
+  completed: boolean;
 }
 
 export interface ScanJob {

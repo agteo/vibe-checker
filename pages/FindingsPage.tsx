@@ -5,6 +5,7 @@ import { Modal } from '../components/Modal';
 
 interface FindingsPageProps {
     findings: Finding[];
+    initialFilter?: { severity?: FindingSeverity; status?: string };
 }
 
 const SEVERITY_COLORS: { [key in FindingSeverity]: string } = {
@@ -44,9 +45,11 @@ const StatusBadge: React.FC<{ status: FindingStatus }> = ({ status }) => {
     );
 };
 
-export const FindingsPage: React.FC<FindingsPageProps> = ({ findings }) => {
+export const FindingsPage: React.FC<FindingsPageProps> = ({ findings, initialFilter }) => {
     const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
     const [expandedFindings, setExpandedFindings] = useState<Set<string>>(new Set());
+    const [severityFilter, setSeverityFilter] = useState<FindingSeverity | 'all'>(initialFilter?.severity || 'all');
+    const [statusFilter, setStatusFilter] = useState<string>(initialFilter?.status || 'all');
 
     const toggleExpanded = (findingId: string) => {
         setExpandedFindings(prev => {
@@ -124,6 +127,21 @@ export const FindingsPage: React.FC<FindingsPageProps> = ({ findings }) => {
                                 <span className="font-semibold text-gray-400">Status:</span>
                                 <StatusBadge status={finding.status} />
                             </div>
+                            {finding.owaspTop10Tags && finding.owaspTop10Tags.length > 0 && (
+                                <div className="col-span-2">
+                                    <span className="font-semibold text-gray-400">OWASP Top 10:</span>
+                                    <div className="flex flex-wrap gap-2 mt-1">
+                                        {finding.owaspTop10Tags.map((tag, index) => (
+                                            <span 
+                                                key={index}
+                                                className="px-2 py-1 bg-purple-600/30 text-purple-300 rounded text-xs font-medium border border-purple-600/50"
+                                            >
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -194,13 +212,68 @@ export const FindingsPage: React.FC<FindingsPageProps> = ({ findings }) => {
         );
     };
 
+    // Apply filters
+    const filteredFindings = findings.filter(finding => {
+        if (severityFilter !== 'all' && finding.severity !== severityFilter) return false;
+        if (statusFilter !== 'all' && finding.status !== statusFilter) return false;
+        return true;
+    });
+
     return (
         <div>
             <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold text-white">Findings</h1>
                 <div className="text-sm text-gray-400">
-                    {findings.length} total findings
+                    {filteredFindings.length} of {findings.length} findings
+                    {(severityFilter !== 'all' || statusFilter !== 'all') && (
+                        <span className="ml-2 text-blue-400">(filtered)</span>
+                    )}
                 </div>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="bg-gray-800 p-4 rounded-lg mb-6 flex gap-4 items-center">
+                <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-400">Severity:</label>
+                    <select
+                        value={severityFilter}
+                        onChange={(e) => setSeverityFilter(e.target.value as FindingSeverity | 'all')}
+                        className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-white text-sm"
+                    >
+                        <option value="all">All</option>
+                        <option value={FindingSeverity.Critical}>Critical</option>
+                        <option value={FindingSeverity.High}>High</option>
+                        <option value={FindingSeverity.Medium}>Medium</option>
+                        <option value={FindingSeverity.Low}>Low</option>
+                        <option value={FindingSeverity.Info}>Info</option>
+                    </select>
+                </div>
+                <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-400">Status:</label>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-white text-sm"
+                    >
+                        <option value="all">All</option>
+                        <option value="open">Open</option>
+                        <option value="triaged">Triaged</option>
+                        <option value="accepted_risk">Accepted Risk</option>
+                        <option value="fixed">Fixed</option>
+                        <option value="false_positive">False Positive</option>
+                    </select>
+                </div>
+                {(severityFilter !== 'all' || statusFilter !== 'all') && (
+                    <button
+                        onClick={() => {
+                            setSeverityFilter('all');
+                            setStatusFilter('all');
+                        }}
+                        className="text-sm text-blue-400 hover:text-blue-300 ml-auto"
+                    >
+                        Clear Filters
+                    </button>
+                )}
             </div>
 
             <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden">
@@ -219,7 +292,16 @@ export const FindingsPage: React.FC<FindingsPageProps> = ({ findings }) => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                        {findings.map(finding => (
+                        {filteredFindings.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} className="px-6 py-8 text-center text-gray-400">
+                                    {findings.length === 0 
+                                        ? 'No findings available. Run a scan to discover vulnerabilities.'
+                                        : 'No findings match the current filters. Try adjusting your filter criteria.'}
+                                </td>
+                            </tr>
+                        ) : (
+                            filteredFindings.map(finding => (
                             <React.Fragment key={finding.id}>
                         <tr
                             className="hover:bg-gray-700/50 cursor-pointer transition-colors"
@@ -270,7 +352,8 @@ export const FindingsPage: React.FC<FindingsPageProps> = ({ findings }) => {
                                     </tr>
                                 )}
                             </React.Fragment>
-                        ))}
+                            ))
+                        )}
                     </tbody>
                 </table>
                 </div>

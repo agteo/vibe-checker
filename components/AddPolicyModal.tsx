@@ -13,11 +13,13 @@ const AVAILABLE_TOOLS = ['ZAP', 'OSV', 'Semgrep', 'Trivy', 'Gitleaks'];
 export const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ isOpen, onClose, onCreatePolicy }) => {
   const [formData, setFormData] = useState({
     name: '',
-    mode: ScanMode.Safe,
+    mode: ScanMode.Passive,
     maxReqPerMin: 120,
     spiderDepth: 5,
-    allowedTools: ['ZAP', 'OSV']
+    allowedTools: ['ZAP', 'OSV'],
+    exclusions: [] as string[]
   });
+  const [exclusionInput, setExclusionInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,17 +34,20 @@ export const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ isOpen, onClose,
         mode: formData.mode,
         maxReqPerMin: formData.maxReqPerMin,
         spiderDepth: formData.spiderDepth,
-        allowedTools: formData.allowedTools
+        allowedTools: formData.allowedTools,
+        exclusions: formData.exclusions
       });
 
       // Reset form
       setFormData({
         name: '',
-        mode: ScanMode.Safe,
+        mode: ScanMode.Passive,
         maxReqPerMin: 120,
         spiderDepth: 5,
-        allowedTools: ['ZAP', 'OSV']
+        allowedTools: ['ZAP', 'OSV'],
+        exclusions: []
       });
+      setExclusionInput('');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create policy');
@@ -98,11 +103,13 @@ export const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ isOpen, onClose,
                 value={formData.mode}
                 onChange={(e) => handleInputChange('mode', e.target.value as ScanMode)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled
               >
-                <option value={ScanMode.Safe}>Safe</option>
-                <option value={ScanMode.Aggressive}>Aggressive</option>
+                <option value={ScanMode.Passive}>Passive (Non-Intrusive)</option>
               </select>
-              <p className="text-xs text-gray-400 mt-1">Safe mode ensures scans don't damage your application</p>
+              <p className="text-xs text-gray-400 mt-1">
+                🛡️ Passive mode: Only spider and passive scanning. Safe for production. No intrusive testing is performed.
+              </p>
             </div>
 
             <div>
@@ -161,6 +168,73 @@ export const AddPolicyModal: React.FC<AddPolicyModalProps> = ({ isOpen, onClose,
                     </span>
                   </label>
                 ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                URL Exclusions
+                <span className="text-xs text-gray-400 ml-2">(Optional - patterns to exclude from scanning)</span>
+              </label>
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={exclusionInput}
+                    onChange={(e) => setExclusionInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && exclusionInput.trim()) {
+                        e.preventDefault();
+                        setFormData(prev => ({
+                          ...prev,
+                          exclusions: [...prev.exclusions, exclusionInput.trim()]
+                        }));
+                        setExclusionInput('');
+                      }
+                    }}
+                    placeholder="e.g., /api/admin/* or */payment/*"
+                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (exclusionInput.trim()) {
+                        setFormData(prev => ({
+                          ...prev,
+                          exclusions: [...prev.exclusions, exclusionInput.trim()]
+                        }));
+                        setExclusionInput('');
+                      }
+                    }}
+                    className="px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+                {formData.exclusions.length > 0 && (
+                  <div className="space-y-1">
+                    {formData.exclusions.map((pattern, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-700/50 p-2 rounded text-sm">
+                        <span className="text-gray-300 font-mono text-xs">{pattern}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              exclusions: prev.exclusions.filter((_, i) => i !== index)
+                            }));
+                          }}
+                          className="text-red-400 hover:text-red-300 text-xs"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-gray-400">
+                  Use wildcards (*) to match patterns. Example: <code className="bg-gray-700 px-1 rounded">/api/admin/*</code> excludes all admin endpoints.
+                </p>
               </div>
             </div>
           </div>

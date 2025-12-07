@@ -19,7 +19,7 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     name: '',
-    mode: ScanMode.Safe,
+    mode: ScanMode.Passive,
     maxReqPerMin: 120,
     spiderDepth: 5,
     allowedTools: [] as string[]
@@ -108,10 +108,13 @@ export const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
               value={formData.mode}
               onChange={(e) => handleInputChange('mode', e.target.value as ScanMode)}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled
             >
-              <option value={ScanMode.Safe}>Safe</option>
-              <option value={ScanMode.Aggressive}>Aggressive</option>
+              <option value={ScanMode.Passive}>Passive (Non-Intrusive)</option>
             </select>
+            <p className="text-xs text-gray-400 mt-1">
+              🛡️ Passive mode: Only spider and passive scanning. Safe for production. No intrusive testing is performed.
+            </p>
           </div>
 
           {/* Rate Limit */}

@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-config
+  namespace: security-services
+data:
+  redis-host: "redis.security-services.svc.cluster.local"
+  zap-host: "zap-scanner.security-services.svc.cluster.local"
+  trivy-host: "trivy-scanner.security-services.svc.cluster.local"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-internal
+  namespace: security-services
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+  selector:
+    app: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zap-scanner-internal
+  namespace: security-services
+  labels:
+    app: zap-scanner
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: zap-scanner
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trivy-scanner-internal
+  namespace: security-services
+  labels:
+    app: trivy-scanner
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: trivy-scanner
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: vibe-check-ssl-cert
+  namespace: security-services
+spec:
+  domains:
+    - your-domain.com
+    - api.your-domain.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vibe-check-ingress
+  namespace: security-services
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: vibe-check-ip
+    networking.gke.io/managed-certificates: vibe-check-ssl-cert
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+  - host: your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vibe-check-frontend
+            port:
+              number: 8080
+  - host: api.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vibe-check-backend
+            port:
+              number: 8080

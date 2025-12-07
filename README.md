@@ -105,6 +105,14 @@ Scan policies define how security scans are performed. Think of them as "scannin
 - **Tools**: OSV (dependency vulnerabilities only)
 - **Speed**: Very fast
 
+#### 🛡️ **All Scans Use Passive Mode (Non-Intrusive)**
+- **Best for**: All environments including production
+- **Duration**: 15-20 minutes
+- **Coverage**: Web application discovery + passive analysis only
+- **Tools**: ZAP (spider + passive scanning only, no active tests)
+- **Speed**: Moderate (120 requests/minute)
+- **Safety**: ✅ Safe for production - no intrusive testing
+
 ### Policy Settings Explained
 
 - **Max Requests Per Minute**: How many requests the scanner sends to your application per minute
@@ -116,7 +124,7 @@ Scan policies define how security scans are performed. Think of them as "scannin
   - Depth 5 = Main pages + 4 levels of links
   - Depth 10 = Very thorough crawling
 
-- **Scan Mode**: Always "Safe" - ensures scans don't damage your application
+- **Scan Mode**: Always "Passive" - non-intrusive scanning that doesn't damage your application
 
 ### Choosing the Right Policy
 
@@ -146,7 +154,8 @@ You can create custom policies by adjusting:
 - **Tools**: Choose which security tools to use (ZAP, OSV, etc.)
 - **Speed**: Adjust requests per minute (50-300)
 - **Depth**: Set spider depth (1-10 levels)
-- **Mode**: Always "Safe" to protect your application
+- **Mode**: Always "Passive" (non-intrusive) - ensures safe scanning for your application
+- **URL Exclusions**: Exclude sensitive endpoints using wildcard patterns (e.g., `/api/admin/*`, `*/payment/*`)
 
 ## 🔑 API Keys Setup
 
@@ -288,8 +297,7 @@ curl http://localhost:3001/api/scans/test/trivy
 ### Consent & Safety Gates
 - **Ownership Attestation**: Users must confirm authorization to test targets
 - **Scope Definition**: Testing limited to declared scope
-- **Safe Mode Default**: Passive scans with rate limiting
-- **Aggressive Mode**: Requires admin approval and double confirmation
+- **Passive Mode Only**: All scans use non-intrusive passive scanning with rate limiting
 
 ### Audit Trail
 - Immutable audit logs of all scan activities
@@ -305,9 +313,11 @@ curl http://localhost:3001/api/scans/test/trivy
 
 ### Scan Capabilities
 - **Multi-Target Support**: Web apps, APIs, repositories
-- **Policy Management**: Configurable scan policies with safe/aggressive modes
+- **Policy Management**: Configurable scan policies with non-intrusive passive scanning
+- **Passive-Only Mode**: All scans use non-intrusive passive scanning - safe for production environments
+- **URL Exclusions**: Exclude sensitive endpoints from scanning using wildcard patterns
 - **Real-time Monitoring**: Live scan status updates with progress tracking
-- **Comprehensive Coverage**: 20-30 minute scans discovering hundreds of vulnerabilities
+- **Comprehensive Coverage**: 15-20 minute scans discovering security issues through passive analysis
 - **OWASP Top 10 Mapping**: Automatic vulnerability categorization
 - **Report Generation**: PDF/CSV exports with compliance mapping
 - **CI/CD Integration**: Webhook support for automated scans
@@ -321,10 +331,30 @@ curl http://localhost:3001/api/scans/test/trivy
 
 ## 🚀 Production Deployment
 
-### GCP Deployment (Recommended)
+### Deployment Options
+
+Vibe Check supports multiple deployment strategies:
+
+1. **Google Cloud Run** (Simple, serverless)
+   - See [GCP_DEPLOYMENT_GUIDE.md](./GCP_DEPLOYMENT_GUIDE.md) for detailed instructions
+   - Best for: Quick deployment, auto-scaling, cost-effective
+
+2. **Hybrid Deployment** (Cloud Run + GKE)
+   - See [HYBRID_DEPLOYMENT_GUIDE.md](./HYBRID_DEPLOYMENT_GUIDE.md) for detailed instructions
+   - Best for: Production environments requiring persistent storage and long-running scans
+
+3. **Local Development**
+   - See [LOCAL_TESTING_GUIDE.md](./LOCAL_TESTING_GUIDE.md) for testing and development
+   - Best for: Development, testing new features, local scanning
+
+### Quick Deployment (Cloud Run)
 ```bash
-# Build for production
-docker-compose -f docker-compose.prod.yml up --build -d
+# Set your project ID
+export PROJECT_ID=your-project-id
+
+# Deploy using the automated script
+chmod +x deploy-gcp.sh
+PROJECT_ID=your-project-id ./deploy-gcp.sh
 ```
 
 ### Environment Variables for Production
@@ -334,6 +364,8 @@ FRONTEND_URL=https://your-domain.com
 DATABASE_URL=postgresql://user:pass@host:port/db
 REDIS_URL=redis://your-redis-host:6379
 ```
+
+**Note**: For production deployments, store sensitive API keys in Google Secret Manager. See `setup-secrets.sh` for setup instructions.
 
 ## 🐛 Troubleshooting
 
@@ -380,9 +412,17 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 4. Test thoroughly
 5. Submit a pull request
 
+## 📚 Additional Documentation
+
+- **[Local Testing Guide](./LOCAL_TESTING_GUIDE.md)** - Comprehensive guide for local development and testing
+- **[GCP Deployment Guide](./GCP_DEPLOYMENT_GUIDE.md)** - Step-by-step Google Cloud Run deployment
+- **[Hybrid Deployment Guide](./HYBRID_DEPLOYMENT_GUIDE.md)** - Cloud Run + GKE hybrid deployment
+- **[Scan Capability Assessment](./SCAN_CAPABILITY_ASSESSMENT.md)** - Detailed analysis of scanning capabilities
+- **[Security Tools Implementation](./SECURITY_TOOLS_IMPLEMENTATION.md)** - Technical details on security tool integrations
+
 ## 📞 Support
 
 For issues and questions:
 - Create an issue in the repository
 - Check the troubleshooting section above
-- Review the PRD.md.txt for detailed requirements
+- Review the documentation guides listed above

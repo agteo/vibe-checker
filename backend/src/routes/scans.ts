@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { NucleiService } from '../services/nucleiService.js';
 import { OSVService } from '../services/osvService.js';
 import { GitHubSecurityService } from '../services/snykService.js';
 import { SemgrepService } from '../services/semgrepService.js';
@@ -15,43 +14,56 @@ const mockPolicies = [
   {
     id: 'policy-default-safe',
     name: 'Safe Default',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 120,
     spiderDepth: 5,
     allowedTools: ['ZAP', 'OSV'],
-    description: 'Comprehensive security scan with moderate speed. Best for production applications.'
+    description: 'Comprehensive security scan with moderate speed. Best for production applications. Non-intrusive passive scanning only.',
+    exclusions: []
   },
   {
     id: 'policy-quick-scan',
     name: 'Quick Scan',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 200,
     spiderDepth: 1,
     allowedTools: ['ZAP', 'OSV'],
-    description: 'Faster scan with basic coverage. Good for development and testing.'
+    description: 'Faster scan with basic coverage. Good for development and testing. Non-intrusive passive scanning only.',
+    exclusions: []
   },
   {
     id: 'policy-comprehensive',
     name: 'Comprehensive Scan',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 80,
     spiderDepth: 10,
     allowedTools: ['ZAP', 'OSV'],
-    description: 'Thorough security analysis with deep crawling. Recommended for critical applications.'
+    description: 'Thorough security analysis with deep crawling. Recommended for critical applications. Non-intrusive passive scanning only.',
+    exclusions: []
   },
   {
     id: 'policy-dependency-only',
     name: 'Dependency Check',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 100,
     spiderDepth: 1,
     allowedTools: ['OSV'],
-    description: 'Quick dependency vulnerability check only. Fastest option for package scanning.'
+    description: 'Quick dependency vulnerability check only. Fastest option for package scanning.',
+    exclusions: []
+  },
+  {
+    id: 'policy-passive-only',
+    name: 'Passive Scan (Non-Intrusive)',
+    mode: 'passive',
+    maxReqPerMin: 150,
+    spiderDepth: 5,
+    allowedTools: ['ZAP', 'OSV'],
+    description: 'Non-intrusive scan using spider and passive scanning only. Safe for production environments. No active vulnerability testing.',
+    exclusions: []
   }
 ];
 
 // Initialize services
-const nucleiService = new NucleiService('vibe-check-nuclei-1');
 const osvService = new OSVService();
 const githubService = new GitHubSecurityService(process.env.GITHUB_TOKEN);
 const semgrepService = new SemgrepService(process.env.SEMGREP_API_KEY || '');
@@ -121,7 +133,8 @@ router.post('/', async (req, res) => {
       configurations: {
         maxReqPerMin: policy.maxReqPerMin,
         spiderDepth: policy.spiderDepth,
-        mode: policy.mode
+        mode: policy.mode,
+        exclusions: policy.exclusions || []
       }
     };
 
@@ -134,7 +147,7 @@ router.post('/', async (req, res) => {
       estimatedDuration: 1800, // 30 minutes for comprehensive ZAP scanning
       targetId,
       policyId,
-      message: 'Comprehensive security scan started. This includes spider crawling and active vulnerability testing. Estimated duration: 30 minutes.'
+      message: 'Non-intrusive security scan started. This includes spider crawling and passive vulnerability analysis. Estimated duration: 20 minutes.'
     };
 
     // Store the scan in our results map
@@ -352,23 +365,6 @@ router.get('/test/zap', async (req, res) => {
   }
 });
 
-// Test Nuclei connection
-router.get('/test/nuclei', async (req, res) => {
-  try {
-    const isConnected = await nucleiService.testConnection();
-    res.json({
-      success: true,
-      data: { connected: isConnected },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Nuclei connection failed',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
 
 // Test GitHub Security connection
 router.get('/test/github', async (req, res) => {

@@ -1,4 +1,3 @@
-import { NucleiService } from './nucleiService.js';
 import { OSVService } from './osvService.js';
 import { SemgrepService } from './semgrepService.js';
 import { TrivyService } from './trivyService.js';
@@ -41,7 +40,6 @@ export interface ScanResult {
 }
 
 export class ScanExecutionService {
-  private nucleiService: NucleiService;
   private osvService: OSVService;
   private semgrepService: SemgrepService;
   private trivyService: TrivyService;
@@ -49,7 +47,6 @@ export class ScanExecutionService {
   private zapService: ZapService;
 
   constructor() {
-    this.nucleiService = new NucleiService('vibe-check-nuclei-1');
     this.osvService = new OSVService();
     this.semgrepService = new SemgrepService(process.env.SEMGREP_API_KEY || '');
     this.trivyService = new TrivyService(process.env.TRIVY_API_URL || 'http://trivy:8080');
@@ -121,8 +118,6 @@ export class ScanExecutionService {
     console.log(`Executing tool: ${tool} for target: ${target.id}`);
 
     switch (tool.toLowerCase()) {
-      case 'nuclei':
-        return await this.executeNucleiScan(target, policy);
       case 'zap':
         return await this.executeZapScan(target, policy);
       case 'osv':
@@ -150,7 +145,9 @@ export class ScanExecutionService {
       }
 
       const targetUrl = urlIdentifier.value;
-      console.log(`Starting comprehensive ZAP scan for URL: ${targetUrl}`);
+      const exclusions = policy.configurations?.exclusions || [];
+
+      console.log(`Starting ZAP scan for URL: ${targetUrl} (passive-only mode)`);
 
       // Step 1: Start spider to discover URLs
       console.log('Step 1: Starting ZAP spider to discover URLs...');
@@ -164,21 +161,40 @@ export class ScanExecutionService {
       const spiderResults = await this.zapService.getSpiderResults();
       console.log(`Spider discovered ${spiderResults.length} URLs`);
 
-      // Step 2: Start active scan for vulnerability testing
-      // Passive scanning happens automatically as traffic flows through ZAP
-      console.log('Step 2: Starting ZAP active scan...');
-      const activeScanId = await this.zapService.startActiveScan(targetUrl);
-      console.log(`ZAP active scan started with ID: ${activeScanId}`);
+      // Apply URL exclusions if configured
+      if (exclusions.length > 0) {
+        console.log(`Applying ${exclusions.length} URL exclusion patterns`);
+        // Note: ZAP doesn't have a direct API to exclude URLs from scanning,
+        // but we can filter alerts after scanning. For now, we log this.
+        // In a production system, you'd configure ZAP context exclusions via API.
+      }
 
-      // Wait for active scan to complete (up to 30 minutes for comprehensive scanning)
-      await this.zapService.waitForScanCompletion(activeScanId, 'active', 1800000);
+      // Step 2: Passive scanning only (non-intrusive)
+      console.log('Step 2: Passive scanning enabled - analyzing discovered URLs without intrusive testing');
+      // Passive scanning happens automatically as traffic flows through ZAP
+      // Give passive scanner time to process discovered URLs
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
       // Get all alerts/findings
       const alerts = await this.zapService.getAlerts();
-      console.log(`ZAP comprehensive scan completed. Found ${alerts.length} alerts`);
+      console.log(`ZAP scan completed. Found ${alerts.length} alerts`);
+
+      // Filter alerts based on URL exclusions
+      let filteredAlerts = alerts;
+      if (exclusions.length > 0) {
+        filteredAlerts = alerts.filter(alert => {
+          const alertUrl = alert.url || '';
+          return !exclusions.some((pattern: string) => {
+            // Simple pattern matching (supports * wildcards)
+            const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+            return regex.test(alertUrl);
+          });
+        });
+        console.log(`Filtered ${alerts.length - filteredAlerts.length} alerts based on exclusions`);
+      }
 
       // Transform ZAP alerts to our findings format
-      return alerts.map(alert => this.transformZapAlert(alert, target.id));
+      return filteredAlerts.map(alert => this.transformZapAlert(alert, target.id));
 
     } catch (error) {
       console.error('ZAP scan failed:', error);
@@ -187,6 +203,8 @@ export class ScanExecutionService {
   }
 
   private transformZapAlert(zapAlert: any, targetId: string): any {
+    const owaspTags = this.mapToOwaspTop10(zapAlert.cweid, zapAlert.wascid, zapAlert.name);
+    
     return {
       id: `zap-finding-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title: zapAlert.name || 'ZAP Security Finding',
@@ -204,8 +222,161 @@ export class ScanExecutionService {
       cwe: zapAlert.cweid,
       wasc: zapAlert.wascid,
       reference: zapAlert.reference,
+      owaspTop10Tags: owaspTags,
       rawResult: zapAlert
     };
+  }
+
+  /**
+   * Maps CWE/WASC IDs and alert names to OWASP Top 10 2021 categories
+   */
+  private mapToOwaspTop10(cweId?: string | number, wascId?: string | number, alertName?: string): string[] {
+    const tags: string[] = [];
+    const cwe = cweId ? String(cweId) : '';
+    const wasc = wascId ? String(wascId) : '';
+    const name = (alertName || '').toLowerCase();
+
+    // CWE to OWASP Top 10 mapping
+    const cweToOwasp: Record<string, string[]> = {
+      // A01: Broken Access Control
+      '284': ['A01'], // Improper Access Control
+      '285': ['A01'], // Improper Authorization
+      '639': ['A01'], // Authorization Bypass Through User-Controlled Key
+      '306': ['A01'], // Missing Authentication for Critical Function
+      
+      // A02: Cryptographic Failures
+      '327': ['A02'], // Use of a Broken or Risky Cryptographic Algorithm
+      '326': ['A02'], // Inadequate Encryption Strength
+      '330': ['A02'], // Use of Insufficiently Random Values
+      '759': ['A02'], // Use of a One-Way Hash without a Salt
+      '760': ['A02'], // Use of a One-Way Hash with a Predictable Salt
+      
+      // A03: Injection
+      '89': ['A03'], // SQL Injection
+      '78': ['A03'], // OS Command Injection
+      '79': ['A03'], // Cross-site Scripting (XSS)
+      '91': ['A03'], // XML Injection
+      '564': ['A03'], // SQL Injection: Hibernate
+      '943': ['A03'], // Improper Neutralization of Special Elements in Data Query Logic
+      '917': ['A03'], // Expression Language Injection
+      
+      // A04: Insecure Design (hard to detect automatically, but some patterns)
+      '693': ['A04'], // Protection Mechanism Failure
+      
+      // A05: Security Misconfiguration
+      '16': ['A05'], // Configuration
+      '209': ['A05'], // Information Exposure Through an Error Message
+      '215': ['A05'], // Information Exposure Through Debug Information
+      '538': ['A05'], // File and Directory Information Exposure
+      
+      // A06: Vulnerable Components (handled by OSV/Trivy, but some CWEs apply)
+      '1104': ['A06'], // Use of Unmaintained Third-Party Components
+      
+      // A07: Authentication Failures
+      '287': ['A07'], // Improper Authentication
+      '306': ['A07'], // Missing Authentication for Critical Function
+      '798': ['A07'], // Use of Hard-coded Credentials
+      '256': ['A07'], // Plaintext Storage of a Password
+      '521': ['A07'], // Weak Password Requirements
+      '307': ['A07'], // Improper Restriction of Excessive Authentication Attempts
+      
+      // A08: Software Integrity Failures
+      '494': ['A08'], // Download of Code Without Integrity Check
+      '502': ['A08'], // Deserialization of Untrusted Data
+      '829': ['A08'], // Inclusion of Functionality from Untrusted Control Sphere
+      
+      // A09: Logging Failures
+      '778': ['A09'], // Insufficient Logging
+      '117': ['A09'], // Improper Output Neutralization for Logs
+      
+      // A10: SSRF
+      '918': ['A10'], // Server-Side Request Forgery (SSRF)
+    };
+
+    // WASC to OWASP Top 10 mapping
+    const wascToOwasp: Record<string, string[]> = {
+      '1': ['A03'], // Insufficient Authentication
+      '2': ['A07'], // Insufficient Authorization
+      '3': ['A03'], // Integer Overflow
+      '4': ['A03'], // Insufficient Input Validation
+      '5': ['A03'], // Remote File Inclusion
+      '6': ['A03'], // Path Traversal
+      '7': ['A03'], // Predictable Resource Location
+      '8': ['A03'], // Cross-Site Request Forgery
+      '9': ['A03'], // Cross-Site Scripting
+      '10': ['A03'], // Denial of Service
+      '11': ['A03'], // SQL Injection
+      '12': ['A03'], // LDAP Injection
+      '13': ['A03'], // XPath Injection
+      '14': ['A03'], // XML Injection
+      '15': ['A03'], // Command Injection
+      '19': ['A05'], // SQL Injection
+      '20': ['A03'], // Improper Input Handling
+      '21': ['A03'], // Insufficient Verification of Data Authenticity
+      '22': ['A03'], // URL Redirector Abuse
+      '23': ['A03'], // Improper Restriction of XML External Entity Reference
+      '24': ['A03'], // HTTP Request Splitting
+      '25': ['A03'], // HTTP Response Splitting
+      '26': ['A03'], // HTTP Header Injection
+      '27': ['A03'], // HTTP Response Smuggling
+      '28': ['A03'], // Null Byte Injection
+      '29': ['A03'], // LDAP Injection
+      '30': ['A03'], // Mail Command Injection
+      '31': ['A03'], // SSI Injection
+      '32': ['A03'], // XPath Injection
+      '33': ['A03'], // XQuery Injection
+      '34': ['A03'], // Code Injection
+      '35': ['A03'], // XSLT Injection
+      '36': ['A03'], // HTTP Header Injection
+      '37': ['A03'], // HTTP Response Splitting
+      '38': ['A03'], // HTTP Request Smuggling
+      '39': ['A03'], // HTTP Response Smuggling
+      '40': ['A03'], // HTTP Header Injection
+      '41': ['A03'], // HTTP Response Splitting
+      '42': ['A03'], // HTTP Request Smuggling
+      '43': ['A03'], // HTTP Response Smuggling
+      '44': ['A03'], // HTTP Header Injection
+      '45': ['A03'], // HTTP Response Splitting
+      '46': ['A03'], // HTTP Request Smuggling
+      '47': ['A03'], // HTTP Response Smuggling
+      '48': ['A10'], // Server-Side Request Forgery
+    };
+
+    // Add CWE-based tags
+    if (cwe && cweToOwasp[cwe]) {
+      tags.push(...cweToOwasp[cwe]);
+    }
+
+    // Add WASC-based tags
+    if (wasc && wascToOwasp[wasc]) {
+      tags.push(...wascToOwasp[wasc]);
+    }
+
+    // Name-based heuristics (fallback if CWE/WASC not available)
+    if (tags.length === 0) {
+      if (name.includes('sql injection') || name.includes('sqli')) {
+        tags.push('A03');
+      } else if (name.includes('xss') || name.includes('cross-site scripting')) {
+        tags.push('A03');
+      } else if (name.includes('csrf') || name.includes('cross-site request forgery')) {
+        tags.push('A01');
+      } else if (name.includes('authentication') || name.includes('auth')) {
+        tags.push('A07');
+      } else if (name.includes('authorization') || name.includes('access control')) {
+        tags.push('A01');
+      } else if (name.includes('ssrf') || name.includes('server-side request forgery')) {
+        tags.push('A10');
+      } else if (name.includes('injection')) {
+        tags.push('A03');
+      } else if (name.includes('misconfiguration') || name.includes('configuration')) {
+        tags.push('A05');
+      } else if (name.includes('crypto') || name.includes('encryption') || name.includes('ssl') || name.includes('tls')) {
+        tags.push('A02');
+      }
+    }
+
+    // Remove duplicates
+    return [...new Set(tags)];
   }
 
   private mapZapRiskToSeverity(zapRisk: string): string {
@@ -226,49 +397,6 @@ export class ScanExecutionService {
     };
     return confidenceMap[zapConfidence] || 'medium';
   }
-
-  private async executeNucleiScan(target: ScanTarget, policy: ScanPolicy): Promise<any[]> {
-    try {
-      console.log(`Executing Nuclei scan for target: ${target.id}`);
-      console.log(`Target identifiers:`, target.identifiers);
-      
-      // Find URL identifier
-      const urlIdentifier = target.identifiers.find(id => id.type === 'url');
-      if (!urlIdentifier) {
-        console.log('No URL identifier found for Nuclei scan, skipping');
-        return [];
-      }
-
-      console.log(`Starting Nuclei scan for URL: ${urlIdentifier.value}`);
-      
-      // Test Nuclei connectivity first
-      const isConnected = await this.nucleiService.testConnection();
-      if (!isConnected) {
-        console.error('Nuclei is not accessible, skipping scan');
-        return [];
-      }
-
-      // Execute Nuclei scan
-      const findings = await this.nucleiService.scanUrl(urlIdentifier.value, {
-        severity: ['critical', 'high', 'medium', 'low'],
-        timeout: 60,
-        rateLimit: 50
-      });
-
-      // Set target ID for all findings
-      findings.forEach(finding => {
-        finding.targetId = target.id;
-      });
-
-      console.log(`Nuclei scan completed with ${findings.length} findings`);
-      return findings;
-
-    } catch (error) {
-      console.error('Nuclei scan failed:', error);
-      throw error;
-    }
-  }
-
 
   private async executeOSVScan(target: ScanTarget, policy: ScanPolicy): Promise<any[]> {
     try {
@@ -316,7 +444,8 @@ export class ScanExecutionService {
               cve: vuln.id,
               ecosystem,
               package: name,
-              version
+              version,
+              owaspTop10Tags: ['A06'] // Vulnerable Components
             });
           });
 
@@ -358,21 +487,44 @@ export class ScanExecutionService {
       const results = await this.semgrepService.getScanResults(scanResult.scan_id);
 
       // Convert Semgrep results to findings
-      return results.map((result, index) => ({
-        id: `semgrep-finding-${Date.now()}-${index}`,
-        title: result.check_id || 'Code Security Issue',
-        severity: this.mapSemgrepSeverityToSeverity(result.severity),
-        status: 'open',
-        tool: 'Semgrep',
-        location: `${result.path}:${result.start?.line || 0}`,
-        targetId: target.id,
-        firstSeenAt: new Date().toISOString(),
-        lastUpdatedAt: new Date().toISOString(),
-        description: result.message || 'Security issue detected in code',
-        recommendation: 'Review and fix the identified code security issue',
-        rule: result.check_id,
-        confidence: result.confidence
-      }));
+      return results.map((result, index) => {
+        const checkId = (result.check_id || '').toLowerCase();
+        const message = (result.message || '').toLowerCase();
+        let owaspTags: string[] = [];
+        
+        // Map common Semgrep rules to OWASP Top 10
+        if (checkId.includes('sql') || checkId.includes('injection') || message.includes('sql injection')) {
+          owaspTags.push('A03');
+        } else if (checkId.includes('xss') || message.includes('xss') || message.includes('cross-site scripting')) {
+          owaspTags.push('A03');
+        } else if (checkId.includes('auth') || message.includes('authentication')) {
+          owaspTags.push('A07');
+        } else if (checkId.includes('crypto') || message.includes('encryption') || message.includes('cipher')) {
+          owaspTags.push('A02');
+        } else if (checkId.includes('log') || message.includes('logging')) {
+          owaspTags.push('A09');
+        } else {
+          // Default to A03 for most code issues
+          owaspTags.push('A03');
+        }
+        
+        return {
+          id: `semgrep-finding-${Date.now()}-${index}`,
+          title: result.check_id || 'Code Security Issue',
+          severity: this.mapSemgrepSeverityToSeverity(result.severity),
+          status: 'open',
+          tool: 'Semgrep',
+          location: `${result.path}:${result.start?.line || 0}`,
+          targetId: target.id,
+          firstSeenAt: new Date().toISOString(),
+          lastUpdatedAt: new Date().toISOString(),
+          description: result.message || 'Security issue detected in code',
+          recommendation: 'Review and fix the identified code security issue',
+          rule: result.check_id,
+          confidence: result.confidence,
+          owaspTop10Tags: owaspTags
+        };
+      });
 
     } catch (error) {
       console.error('Semgrep scan failed:', error);
@@ -417,7 +569,8 @@ export class ScanExecutionService {
                 recommendation: 'Update the vulnerable package or base image',
                 cve: vuln.vulnerability_id,
                 package: vuln.package_name,
-                version: vuln.installed_version
+                version: vuln.installed_version,
+                owaspTop10Tags: ['A06'] // Vulnerable Components
               });
             });
           }
@@ -473,7 +626,8 @@ export class ScanExecutionService {
         description: advisory.summary || 'Security advisory from GitHub',
         recommendation: 'Review and address the security advisory',
         ghsa: advisory.ghsa_id,
-        cve: advisory.cve_id
+        cve: advisory.cve_id,
+        owaspTop10Tags: ['A06', 'A08'] // Vulnerable Components and Software Integrity
       }));
 
     } catch (error) {

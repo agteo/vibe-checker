@@ -7,38 +7,52 @@ const mockPolicies = [
   {
     id: 'policy-default-safe',
     name: 'Safe Default',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 120,
     spiderDepth: 5,
     allowedTools: ['ZAP', 'OSV'],
-    description: 'Comprehensive security scan with moderate speed. Best for production applications.'
+    description: 'Comprehensive security scan with moderate speed. Best for production applications. Non-intrusive passive scanning only.',
+    exclusions: []
   },
   {
     id: 'policy-quick-scan',
     name: 'Quick Scan',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 200,
     spiderDepth: 1,
     allowedTools: ['ZAP', 'OSV'],
-    description: 'Faster scan with basic coverage. Good for development and testing.'
+    description: 'Faster scan with basic coverage. Good for development and testing. Non-intrusive passive scanning only.',
+    exclusions: []
   },
   {
     id: 'policy-comprehensive',
     name: 'Comprehensive Scan',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 80,
     spiderDepth: 10,
     allowedTools: ['ZAP', 'OSV'],
-    description: 'Thorough security analysis with deep crawling. Recommended for critical applications.'
+    description: 'Thorough security analysis with deep crawling. Recommended for critical applications. Non-intrusive passive scanning only.',
+    exclusions: []
   },
   {
     id: 'policy-dependency-only',
     name: 'Dependency Check',
-    mode: 'safe',
+    mode: 'passive',
     maxReqPerMin: 100,
     spiderDepth: 1,
     allowedTools: ['OSV'],
-    description: 'Quick dependency vulnerability check only. Fastest option for package scanning.'
+    description: 'Quick dependency vulnerability check only. Fastest option for package scanning.',
+    exclusions: []
+  },
+  {
+    id: 'policy-passive-only',
+    name: 'Passive Scan (Non-Intrusive)',
+    mode: 'passive',
+    maxReqPerMin: 150,
+    spiderDepth: 5,
+    allowedTools: ['ZAP', 'OSV'],
+    description: 'Non-intrusive scan using spider and passive scanning only. Safe for production environments. No active vulnerability testing.',
+    exclusions: []
   }
 ];
 
@@ -72,7 +86,7 @@ router.get('/:id', (req, res) => {
 // Create new policy
 router.post('/', (req, res) => {
   try {
-    const { name, mode, maxReqPerMin, spiderDepth, allowedTools } = req.body;
+    const { name, mode, maxReqPerMin, spiderDepth, allowedTools, exclusions } = req.body;
 
     if (!name || !mode || !allowedTools || !Array.isArray(allowedTools)) {
       return res.status(400).json({
@@ -88,7 +102,8 @@ router.post('/', (req, res) => {
       mode,
       maxReqPerMin: maxReqPerMin || 100,
       spiderDepth: spiderDepth || 3,
-      allowedTools
+      allowedTools,
+      exclusions: exclusions || []
     };
 
     mockPolicies.push(newPolicy);

@@ -1,0 +1,48 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: vibe-check-frontend
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "10"
+        autoscaling.knative.dev/minScale: "1"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 1000
+      timeoutSeconds: 60
+      containers:
+      - image: gcr.io/PROJECT_ID/vibe-check-frontend:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: REACT_APP_API_URL
+          value: "https://vibe-check-backend-PROJECT_ID.a.run.app"
+        - name: REACT_APP_ZAP_API_URL
+          value: "http://zap-scanner:8080"
+        - name: REACT_APP_OSV_API_URL
+          value: "https://api.osv.dev"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+          requests:
+            cpu: "0.5"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
