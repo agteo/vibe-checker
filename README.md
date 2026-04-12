@@ -192,6 +192,22 @@ You can create custom policies by adjusting:
   - Filesystem security analysis
   - Infrastructure as Code (IaC) scanning
 
+### Why We Continue Using Trivy
+
+We reviewed the March 2026 Trivy incident and chose to continue using Trivy in this repository rather than replace it with a different scanner.
+
+- The incident was primarily a supply-chain compromise of specific release artifacts and GitHub Action distribution paths, not evidence that Trivy's scanning engine was no longer viable.
+- This repository uses Trivy as an application-integrated scanner service and does not rely on the compromised GitHub Actions wrappers as part of its normal local runtime.
+- Replacing Trivy would add migration risk across backend services, deployment manifests, policy configuration, and documentation without a clear security gain if we can instead harden how we consume Trivy.
+- Trivy still fits the product surface we want here: container scanning, filesystem scanning, and room for broader infrastructure-oriented checks.
+
+Our decision is to keep Trivy and harden usage:
+
+- Prefer pinned versions or immutable image digests over mutable tags like `latest`.
+- Verify release provenance before upgrading scanner images or binaries.
+- Review image pull history and rotate secrets if there is any indication affected artifacts were previously executed.
+- Treat scanner upgrades as controlled dependency updates, not ambient infrastructure drift.
+
 ### Static Analysis (Optional)
 - **Semgrep** - Static application security testing (SAST)
   - Code analysis for security vulnerabilities

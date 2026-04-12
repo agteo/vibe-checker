@@ -33,8 +33,6 @@ spec:
           value: "http://zap-scanner:8080"
         - name: OSV_API_URL
           value: "https://api.osv.dev"
-        - name: TRIVY_API_URL
-          value: "http://trivy-scanner:8080"
         resources:
           limits:
             cpu: "2"
@@ -54,3 +52,5 @@ spec:
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
+        - name: TRIVY_API_URL
+          value: "http://trivy-scanner:8080"

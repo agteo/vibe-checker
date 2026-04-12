@@ -385,10 +385,8 @@ router.get('/test/github', async (req, res) => {
   }
 });
 
-// Test Trivy connection
 router.get('/test/trivy', async (req, res) => {
   try {
-    // Test with a common Docker image
     const results = await trivyService.scanImage('alpine:latest');
     res.json({
       success: true,

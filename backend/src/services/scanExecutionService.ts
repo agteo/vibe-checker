@@ -3,6 +3,9 @@ import { SemgrepService } from './semgrepService.js';
 import { TrivyService } from './trivyService.js';
 import { GitHubSecurityService } from './snykService.js';
 import { ZapService } from './zapService.js';
+import { PackageVersionService } from './packageVersionService.js';
+import path from 'path';
+import fs from 'fs/promises';
 
 export interface ScanTarget {
   id: string;
@@ -45,6 +48,7 @@ export class ScanExecutionService {
   private trivyService: TrivyService;
   private githubService: GitHubSecurityService;
   private zapService: ZapService;
+  private packageVersionService: PackageVersionService;
 
   constructor() {
     this.osvService = new OSVService();
@@ -52,6 +56,7 @@ export class ScanExecutionService {
     this.trivyService = new TrivyService(process.env.TRIVY_API_URL || 'http://trivy:8080');
     this.githubService = new GitHubSecurityService(process.env.GITHUB_TOKEN);
     this.zapService = new ZapService(process.env.ZAP_API_URL || 'http://zap:8080');
+    this.packageVersionService = new PackageVersionService();
   }
 
   async executeScan(
@@ -74,11 +79,9 @@ export class ScanExecutionService {
     };
 
     try {
-      // Execute tools in parallel for better performance
       const toolPromises = policy.tools.map(tool => this.executeTool(tool, target, policy));
       const toolResults = await Promise.allSettled(toolPromises);
 
-      // Process results
       toolResults.forEach((toolResult, index) => {
         const tool = policy.tools[index];
         
@@ -93,7 +96,6 @@ export class ScanExecutionService {
         }
       });
 
-      // Calculate summary
       result.summary = this.calculateSummary(result.findings);
       result.status = 'completed';
       result.finishedAt = new Date().toISOString();
@@ -137,7 +139,6 @@ export class ScanExecutionService {
     try {
       console.log(`Executing ZAP scan for target: ${target.id}`);
       
-      // Get URL from target identifiers
       const urlIdentifier = target.identifiers.find(id => id.type === 'url');
       if (!urlIdentifier) {
         console.log('No URL identifier found for ZAP scan, skipping');
@@ -148,241 +149,130 @@ export class ScanExecutionService {
       const exclusions = policy.configurations?.exclusions || [];
 
       console.log(`Starting ZAP scan for URL: ${targetUrl} (passive-only mode)`);
-
-      // Step 1: Start spider to discover URLs
       console.log('Step 1: Starting ZAP spider to discover URLs...');
       const spiderScanId = await this.zapService.startSpider(targetUrl);
       console.log(`ZAP spider started with ID: ${spiderScanId}`);
 
-      // Wait for spider to complete (up to 2 minutes)
       await this.zapService.waitForScanCompletion(spiderScanId, 'spider', 120000);
       
-      // Get spider results
       const spiderResults = await this.zapService.getSpiderResults();
       console.log(`Spider discovered ${spiderResults.length} URLs`);
 
-      // Apply URL exclusions if configured
-      if (exclusions.length > 0) {
-        console.log(`Applying ${exclusions.length} URL exclusion patterns`);
-        // Note: ZAP doesn't have a direct API to exclude URLs from scanning,
-        // but we can filter alerts after scanning. For now, we log this.
-        // In a production system, you'd configure ZAP context exclusions via API.
-      }
-
-      // Step 2: Passive scanning only (non-intrusive)
-      console.log('Step 2: Passive scanning enabled - analyzing discovered URLs without intrusive testing');
-      // Passive scanning happens automatically as traffic flows through ZAP
-      // Give passive scanner time to process discovered URLs
-      await new Promise(resolve => setTimeout(resolve, 10000));
-
-      // Get all alerts/findings
-      const alerts = await this.zapService.getAlerts();
-      console.log(`ZAP scan completed. Found ${alerts.length} alerts`);
-
-      // Filter alerts based on URL exclusions
-      let filteredAlerts = alerts;
-      if (exclusions.length > 0) {
-        filteredAlerts = alerts.filter(alert => {
-          const alertUrl = alert.url || '';
-          return !exclusions.some((pattern: string) => {
-            // Simple pattern matching (supports * wildcards)
-            const regex = new RegExp(pattern.replace(/\*/g, '.*'));
-            return regex.test(alertUrl);
-          });
+      const filteredUrls = spiderResults.filter(url => {
+        return !exclusions.some((pattern: string) => {
+          const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+          return regex.test(url);
         });
-        console.log(`Filtered ${alerts.length - filteredAlerts.length} alerts based on exclusions`);
+      });
+
+      console.log(`After exclusions: ${filteredUrls.length} URLs to scan`);
+      console.log('Step 2: Running passive scan on discovered URLs...');
+      for (const url of filteredUrls.slice(0, policy.configurations?.spiderDepth || 10)) {
+        try {
+          await this.zapService.accessUrl(url);
+        } catch (error) {
+          console.warn(`Failed to access ${url}: ${error}`);
+        }
       }
 
-      // Transform ZAP alerts to our findings format
-      return filteredAlerts.map(alert => this.transformZapAlert(alert, target.id));
+      console.log('Step 3: Collecting passive scan alerts...');
+      const alerts = await this.zapService.getAlerts();
+      console.log(`ZAP found ${alerts.length} alerts`);
+
+      return alerts.map((alert, index) => ({
+        id: `zap-finding-${Date.now()}-${index}`,
+        title: alert.name || 'Web Security Issue',
+        severity: this.mapZapRiskToSeverity(alert.risk),
+        status: 'open',
+        tool: 'ZAP',
+        location: alert.url || targetUrl,
+        targetId: target.id,
+        firstSeenAt: new Date().toISOString(),
+        lastUpdatedAt: new Date().toISOString(),
+        description: alert.description || 'Security issue detected in web application',
+        recommendation: alert.solution || 'Review and address the identified security issue',
+        confidence: this.mapZapConfidenceToConfidence(alert.confidence),
+        cwe: alert.cweid,
+        wasc: alert.wascid,
+        owaspTop10Tags: this.mapToOwaspTop10(alert.name || '', alert.cweid, alert.wascid)
+      }));
 
     } catch (error) {
       console.error('ZAP scan failed:', error);
-      return [];
+      throw error;
     }
   }
 
-  private transformZapAlert(zapAlert: any, targetId: string): any {
-    const owaspTags = this.mapToOwaspTop10(zapAlert.cweid, zapAlert.wascid, zapAlert.name);
-    
-    return {
-      id: `zap-finding-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      title: zapAlert.name || 'ZAP Security Finding',
-      severity: this.mapZapRiskToSeverity(zapAlert.risk),
-      status: 'open',
-      tool: 'ZAP',
-      location: zapAlert.url || 'Unknown',
-      targetId: targetId,
-      firstSeenAt: new Date().toISOString(),
-      lastUpdatedAt: new Date().toISOString(),
-      description: zapAlert.description || 'Security issue detected by ZAP',
-      recommendation: zapAlert.solution || 'Review and fix the identified security issue',
-      confidence: this.mapZapConfidenceToConfidence(zapAlert.confidence),
-      risk: zapAlert.risk || 'medium',
-      cwe: zapAlert.cweid,
-      wasc: zapAlert.wascid,
-      reference: zapAlert.reference,
-      owaspTop10Tags: owaspTags,
-      rawResult: zapAlert
-    };
-  }
-
-  /**
-   * Maps CWE/WASC IDs and alert names to OWASP Top 10 2021 categories
-   */
-  private mapToOwaspTop10(cweId?: string | number, wascId?: string | number, alertName?: string): string[] {
+  private mapToOwaspTop10(name: string, cwe?: string, wasc?: string): string[] {
     const tags: string[] = [];
-    const cwe = cweId ? String(cweId) : '';
-    const wasc = wascId ? String(wascId) : '';
-    const name = (alertName || '').toLowerCase();
-
-    // CWE to OWASP Top 10 mapping
     const cweToOwasp: Record<string, string[]> = {
-      // A01: Broken Access Control
-      '284': ['A01'], // Improper Access Control
-      '285': ['A01'], // Improper Authorization
-      '639': ['A01'], // Authorization Bypass Through User-Controlled Key
-      '306': ['A01'], // Missing Authentication for Critical Function
-      
-      // A02: Cryptographic Failures
-      '327': ['A02'], // Use of a Broken or Risky Cryptographic Algorithm
-      '326': ['A02'], // Inadequate Encryption Strength
-      '330': ['A02'], // Use of Insufficiently Random Values
-      '759': ['A02'], // Use of a One-Way Hash without a Salt
-      '760': ['A02'], // Use of a One-Way Hash with a Predictable Salt
-      
-      // A03: Injection
-      '89': ['A03'], // SQL Injection
-      '78': ['A03'], // OS Command Injection
-      '79': ['A03'], // Cross-site Scripting (XSS)
-      '91': ['A03'], // XML Injection
-      '564': ['A03'], // SQL Injection: Hibernate
-      '943': ['A03'], // Improper Neutralization of Special Elements in Data Query Logic
-      '917': ['A03'], // Expression Language Injection
-      
-      // A04: Insecure Design (hard to detect automatically, but some patterns)
-      '693': ['A04'], // Protection Mechanism Failure
-      
-      // A05: Security Misconfiguration
-      '16': ['A05'], // Configuration
-      '209': ['A05'], // Information Exposure Through an Error Message
-      '215': ['A05'], // Information Exposure Through Debug Information
-      '538': ['A05'], // File and Directory Information Exposure
-      
-      // A06: Vulnerable Components (handled by OSV/Trivy, but some CWEs apply)
-      '1104': ['A06'], // Use of Unmaintained Third-Party Components
-      
-      // A07: Authentication Failures
-      '287': ['A07'], // Improper Authentication
-      '306': ['A07'], // Missing Authentication for Critical Function
-      '798': ['A07'], // Use of Hard-coded Credentials
-      '256': ['A07'], // Plaintext Storage of a Password
-      '521': ['A07'], // Weak Password Requirements
-      '307': ['A07'], // Improper Restriction of Excessive Authentication Attempts
-      
-      // A08: Software Integrity Failures
-      '494': ['A08'], // Download of Code Without Integrity Check
-      '502': ['A08'], // Deserialization of Untrusted Data
-      '829': ['A08'], // Inclusion of Functionality from Untrusted Control Sphere
-      
-      // A09: Logging Failures
-      '778': ['A09'], // Insufficient Logging
-      '117': ['A09'], // Improper Output Neutralization for Logs
-      
-      // A10: SSRF
-      '918': ['A10'], // Server-Side Request Forgery (SSRF)
+      '22': ['A01'],
+      '352': ['A01'],
+      '862': ['A01'],
+      '863': ['A01'],
+      '639': ['A01'],
+      '259': ['A02'],
+      '327': ['A02'],
+      '328': ['A02'],
+      '319': ['A02'],
+      '79': ['A03'],
+      '89': ['A03'],
+      '77': ['A03'],
+      '78': ['A03'],
+      '90': ['A03'],
+      '91': ['A03'],
+      '943': ['A03'],
+      '209': ['A04'],
+      '285': ['A04'],
+      '16': ['A05'],
+      '611': ['A05'],
+      '276': ['A05'],
+      '732': ['A05'],
+      '1104': ['A06'],
+      '287': ['A07'],
+      '307': ['A07'],
+      '494': ['A08'],
+      '502': ['A08'],
+      '829': ['A08'],
+      '778': ['A09'],
+      '117': ['A09'],
+      '918': ['A10'],
     };
 
-    // WASC to OWASP Top 10 mapping
     const wascToOwasp: Record<string, string[]> = {
-      '1': ['A03'], // Insufficient Authentication
-      '2': ['A07'], // Insufficient Authorization
-      '3': ['A03'], // Integer Overflow
-      '4': ['A03'], // Insufficient Input Validation
-      '5': ['A03'], // Remote File Inclusion
-      '6': ['A03'], // Path Traversal
-      '7': ['A03'], // Predictable Resource Location
-      '8': ['A03'], // Cross-Site Request Forgery
-      '9': ['A03'], // Cross-Site Scripting
-      '10': ['A03'], // Denial of Service
-      '11': ['A03'], // SQL Injection
-      '12': ['A03'], // LDAP Injection
-      '13': ['A03'], // XPath Injection
-      '14': ['A03'], // XML Injection
-      '15': ['A03'], // Command Injection
-      '19': ['A05'], // SQL Injection
-      '20': ['A03'], // Improper Input Handling
-      '21': ['A03'], // Insufficient Verification of Data Authenticity
-      '22': ['A03'], // URL Redirector Abuse
-      '23': ['A03'], // Improper Restriction of XML External Entity Reference
-      '24': ['A03'], // HTTP Request Splitting
-      '25': ['A03'], // HTTP Response Splitting
-      '26': ['A03'], // HTTP Header Injection
-      '27': ['A03'], // HTTP Response Smuggling
-      '28': ['A03'], // Null Byte Injection
-      '29': ['A03'], // LDAP Injection
-      '30': ['A03'], // Mail Command Injection
-      '31': ['A03'], // SSI Injection
-      '32': ['A03'], // XPath Injection
-      '33': ['A03'], // XQuery Injection
-      '34': ['A03'], // Code Injection
-      '35': ['A03'], // XSLT Injection
-      '36': ['A03'], // HTTP Header Injection
-      '37': ['A03'], // HTTP Response Splitting
-      '38': ['A03'], // HTTP Request Smuggling
-      '39': ['A03'], // HTTP Response Smuggling
-      '40': ['A03'], // HTTP Header Injection
-      '41': ['A03'], // HTTP Response Splitting
-      '42': ['A03'], // HTTP Request Smuggling
-      '43': ['A03'], // HTTP Response Smuggling
-      '44': ['A03'], // HTTP Header Injection
-      '45': ['A03'], // HTTP Response Splitting
-      '46': ['A03'], // HTTP Request Smuggling
-      '47': ['A03'], // HTTP Response Smuggling
-      '48': ['A10'], // Server-Side Request Forgery
+      '1': ['A03'], '2': ['A07'], '3': ['A03'], '4': ['A03'], '5': ['A03'],
+      '6': ['A03'], '7': ['A03'], '8': ['A03'], '9': ['A03'], '10': ['A03'],
+      '11': ['A03'], '12': ['A03'], '13': ['A03'], '14': ['A03'], '15': ['A03'],
+      '19': ['A05'], '20': ['A03'], '21': ['A03'], '22': ['A03'], '23': ['A03'],
+      '24': ['A03'], '25': ['A03'], '26': ['A03'], '27': ['A03'], '28': ['A03'],
+      '29': ['A03'], '30': ['A03'], '31': ['A03'], '32': ['A03'], '33': ['A03'],
+      '34': ['A03'], '35': ['A03'], '36': ['A03'], '37': ['A03'], '38': ['A03'],
+      '39': ['A03'], '40': ['A03'], '41': ['A03'], '42': ['A03'], '43': ['A03'],
+      '44': ['A03'], '45': ['A03'], '46': ['A03'], '47': ['A03'], '48': ['A10'],
     };
 
-    // Add CWE-based tags
-    if (cwe && cweToOwasp[cwe]) {
-      tags.push(...cweToOwasp[cwe]);
-    }
+    if (cwe && cweToOwasp[cwe]) tags.push(...cweToOwasp[cwe]);
+    if (wasc && wascToOwasp[wasc]) tags.push(...wascToOwasp[wasc]);
 
-    // Add WASC-based tags
-    if (wasc && wascToOwasp[wasc]) {
-      tags.push(...wascToOwasp[wasc]);
-    }
-
-    // Name-based heuristics (fallback if CWE/WASC not available)
     if (tags.length === 0) {
-      if (name.includes('sql injection') || name.includes('sqli')) {
-        tags.push('A03');
-      } else if (name.includes('xss') || name.includes('cross-site scripting')) {
-        tags.push('A03');
-      } else if (name.includes('csrf') || name.includes('cross-site request forgery')) {
-        tags.push('A01');
-      } else if (name.includes('authentication') || name.includes('auth')) {
-        tags.push('A07');
-      } else if (name.includes('authorization') || name.includes('access control')) {
-        tags.push('A01');
-      } else if (name.includes('ssrf') || name.includes('server-side request forgery')) {
-        tags.push('A10');
-      } else if (name.includes('injection')) {
-        tags.push('A03');
-      } else if (name.includes('misconfiguration') || name.includes('configuration')) {
-        tags.push('A05');
-      } else if (name.includes('crypto') || name.includes('encryption') || name.includes('ssl') || name.includes('tls')) {
-        tags.push('A02');
-      }
+      if (name.includes('sql injection') || name.includes('sqli')) tags.push('A03');
+      else if (name.includes('xss') || name.includes('cross-site scripting')) tags.push('A03');
+      else if (name.includes('csrf') || name.includes('cross-site request forgery')) tags.push('A01');
+      else if (name.includes('authentication') || name.includes('auth')) tags.push('A07');
+      else if (name.includes('authorization') || name.includes('access control')) tags.push('A01');
+      else if (name.includes('ssrf') || name.includes('server-side request forgery')) tags.push('A10');
+      else if (name.includes('injection')) tags.push('A03');
+      else if (name.includes('misconfiguration') || name.includes('configuration')) tags.push('A05');
+      else if (name.includes('crypto') || name.includes('encryption') || name.includes('ssl') || name.includes('tls')) tags.push('A02');
     }
 
-    // Remove duplicates
     return [...new Set(tags)];
   }
 
   private mapZapRiskToSeverity(zapRisk: string): string {
     const riskMap: Record<string, string> = {
       'High': 'high',
-      'Medium': 'medium', 
+      'Medium': 'medium',
       'Low': 'low',
       'Informational': 'info'
     };
@@ -403,57 +293,120 @@ export class ScanExecutionService {
       console.log(`Starting OSV scan for target: ${target.id}`);
       console.log(`Target identifiers:`, target.identifiers);
       
-      // Find package identifiers
+      const findings: any[] = [];
+      const packagesToScan: Array<{
+        name: string;
+        version: string;
+        ecosystem: string;
+        isExactVersion: boolean;
+        isDirect: boolean;
+        source: string;
+      }> = [];
+
+      const repoPathIdentifier = target.identifiers.find(id => 
+        id.type === 'repository' || id.type === 'filepath'
+      );
+
+      if (repoPathIdentifier) {
+        try {
+          const repoPath = repoPathIdentifier.value;
+          const ecosystems: Array<'npm' | 'pypi' | 'maven'> = ['npm', 'pypi', 'maven'];
+          
+          for (const ecosystem of ecosystems) {
+            const versionResult = await this.packageVersionService.extractPackageVersions(repoPath, ecosystem);
+
+            if (versionResult.packages.length > 0) {
+              console.log(`Found ${versionResult.packages.length} packages from ${versionResult.source} (${ecosystem})`);
+              
+              versionResult.packages.forEach(pkg => {
+                packagesToScan.push({
+                  name: pkg.name,
+                  version: pkg.version,
+                  ecosystem: pkg.ecosystem,
+                  isExactVersion: pkg.source === 'lockfile',
+                  isDirect: pkg.isDirect,
+                  source: `${pkg.source} (${ecosystem})`
+                });
+              });
+              
+              break;
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to extract packages from repository path: ${error}`);
+        }
+      }
+
       const packageIdentifiers = target.identifiers.filter(id => 
         id.type === 'npm' || id.type === 'pypi' || id.type === 'maven'
       );
 
-      if (packageIdentifiers.length === 0) {
-        console.log('No package identifiers found for OSV scan, skipping');
+      for (const pkgIdentifier of packageIdentifiers) {
+        const ecosystem = this.mapIdentifierTypeToEcosystem(pkgIdentifier.type) as 'npm' | 'pypi' | 'maven';
+        const parsed = this.packageVersionService.parsePackageIdentifier(pkgIdentifier.value, ecosystem);
+
+        if (parsed) {
+          const existing = packagesToScan.find(
+            p => p.name === parsed.name && p.ecosystem === parsed.ecosystem
+          );
+
+          if (!existing) {
+            packagesToScan.push({
+              name: parsed.name,
+              version: parsed.version,
+              ecosystem: parsed.ecosystem,
+              isExactVersion: !this.isVersionRange(parsed.version),
+              isDirect: true,
+              source: 'identifier'
+            });
+          }
+        }
+      }
+
+      if (packagesToScan.length === 0) {
+        console.log('No packages found for OSV scan, skipping');
         return [];
       }
 
-      const findings: any[] = [];
+      console.log(`Scanning ${packagesToScan.length} packages (${packagesToScan.filter(p => p.isExactVersion).length} exact versions)`);
 
-      for (const pkg of packageIdentifiers) {
+      for (const pkg of packagesToScan) {
         try {
-          // Parse package info (simplified - assumes format like "package@version")
-          const [name, version] = pkg.value.split('@');
-          const ecosystem = this.mapIdentifierTypeToEcosystem(pkg.type);
+          const vulnerabilities = await this.osvService.queryVulnerabilitiesHybrid(
+            { name: pkg.name, version: pkg.version, ecosystem: pkg.ecosystem },
+            pkg.isExactVersion
+          );
 
-          const vulnerabilities = await this.osvService.queryVulnerabilities({
-            name,
-            version: version || 'latest',
-            ecosystem
-          });
-
-          // Convert OSV vulnerabilities to findings
           vulnerabilities.forEach((vuln, index) => {
             findings.push({
-              id: `osv-finding-${Date.now()}-${index}`,
+              id: `osv-finding-${Date.now()}-${pkg.name}-${index}`,
               title: vuln.summary || 'Dependency Vulnerability',
               severity: this.mapOSVSeverityToSeverity(vuln.severity),
               status: 'open',
               tool: 'OSV',
-              location: `${name}@${version}`,
+              location: `${pkg.name}@${pkg.version}`,
               targetId: target.id,
               firstSeenAt: new Date().toISOString(),
               lastUpdatedAt: new Date().toISOString(),
-              description: vuln.summary || 'Vulnerability in dependency',
-              recommendation: 'Update to a secure version of the dependency',
+              description: vuln.summary || vuln.details || 'Vulnerability in dependency',
+              recommendation: this.generateRecommendation(pkg, vuln),
               cve: vuln.id,
-              ecosystem,
-              package: name,
-              version,
-              owaspTop10Tags: ['A06'] // Vulnerable Components
+              ecosystem: pkg.ecosystem,
+              package: pkg.name,
+              version: pkg.version,
+              isDirect: pkg.isDirect,
+              source: pkg.source,
+              confidence: pkg.isExactVersion ? 'high' : 'medium',
+              owaspTop10Tags: ['A06']
             });
           });
 
         } catch (error) {
-          console.error(`OSV scan failed for package ${pkg.value}:`, error);
+          console.error(`OSV scan failed for package ${pkg.name}@${pkg.version}:`, error);
         }
       }
 
+      console.log(`OSV scan completed with ${findings.length} findings`);
       return findings;
 
     } catch (error) {
@@ -462,9 +415,28 @@ export class ScanExecutionService {
     }
   }
 
+  private isVersionRange(version: string): boolean {
+    if (!version || version === 'latest') return true;
+    return /^[\^~><=]/.test(version.trim()) || 
+           version.includes('||') || 
+           version.includes(' - ') ||
+           version.includes('x') ||
+           version === '*';
+  }
+
+  private generateRecommendation(
+    pkg: { name: string; version: string; isExactVersion: boolean },
+    vuln: any
+  ): string {
+    if (pkg.isExactVersion) {
+      return `Update ${pkg.name} to a patched version. Current version ${pkg.version} is vulnerable.`;
+    } else {
+      return `Verify the exact installed version of ${pkg.name}. The version range ${pkg.version} may include vulnerable versions. Check package-lock.json for the exact version.`;
+    }
+  }
+
   private async executeSemgrepScan(target: ScanTarget, policy: ScanPolicy): Promise<any[]> {
     try {
-      // Check if API key is available
       if (!process.env.SEMGREP_API_KEY) {
         console.log('Semgrep API key not configured, skipping scan');
         return [];
@@ -472,7 +444,6 @@ export class ScanExecutionService {
 
       console.log(`Starting Semgrep scan for target: ${target.id}`);
       
-      // Find repository identifier
       const repoIdentifier = target.identifiers.find(id => id.type === 'repository');
       if (!repoIdentifier) {
         throw new Error('No repository identifier found for Semgrep scan');
@@ -483,16 +454,13 @@ export class ScanExecutionService {
         policy.configurations?.ruleset || 'p/security-audit'
       );
 
-      // Wait for scan to complete and get results
       const results = await this.semgrepService.getScanResults(scanResult.scan_id);
 
-      // Convert Semgrep results to findings
       return results.map((result, index) => {
         const checkId = (result.check_id || '').toLowerCase();
         const message = (result.message || '').toLowerCase();
         let owaspTags: string[] = [];
         
-        // Map common Semgrep rules to OWASP Top 10
         if (checkId.includes('sql') || checkId.includes('injection') || message.includes('sql injection')) {
           owaspTags.push('A03');
         } else if (checkId.includes('xss') || message.includes('xss') || message.includes('cross-site scripting')) {
@@ -504,7 +472,6 @@ export class ScanExecutionService {
         } else if (checkId.includes('log') || message.includes('logging')) {
           owaspTags.push('A09');
         } else {
-          // Default to A03 for most code issues
           owaspTags.push('A03');
         }
         
@@ -536,7 +503,6 @@ export class ScanExecutionService {
     try {
       console.log(`Starting Trivy scan for target: ${target.id}`);
       
-      // Find container/image identifiers
       const containerIdentifiers = target.identifiers.filter(id => 
         id.type === 'container' || id.type === 'image'
       );
@@ -552,7 +518,6 @@ export class ScanExecutionService {
         try {
           const scanResult = await this.trivyService.scanImage(container.value);
           
-          // Convert Trivy results to findings
           if (scanResult.vulnerabilities) {
             scanResult.vulnerabilities.forEach((vuln, index) => {
               findings.push({
@@ -570,7 +535,7 @@ export class ScanExecutionService {
                 cve: vuln.vulnerability_id,
                 package: vuln.package_name,
                 version: vuln.installed_version,
-                owaspTop10Tags: ['A06'] // Vulnerable Components
+                owaspTop10Tags: ['A06']
               });
             });
           }
@@ -590,7 +555,6 @@ export class ScanExecutionService {
 
   private async executeGitHubScan(target: ScanTarget, policy: ScanPolicy): Promise<any[]> {
     try {
-      // Check if GitHub token is available
       if (!process.env.GITHUB_TOKEN) {
         console.log('GitHub token not configured, skipping scan');
         return [];
@@ -598,13 +562,11 @@ export class ScanExecutionService {
 
       console.log(`Starting GitHub security scan for target: ${target.id}`);
       
-      // Find repository identifier
       const repoIdentifier = target.identifiers.find(id => id.type === 'repository');
       if (!repoIdentifier) {
         throw new Error('No repository identifier found for GitHub scan');
       }
 
-      // Parse repository (assumes format like "owner/repo")
       const [owner, repo] = repoIdentifier.value.split('/');
       if (!owner || !repo) {
         throw new Error('Invalid repository format. Expected "owner/repo"');
@@ -612,7 +574,6 @@ export class ScanExecutionService {
 
       const advisories = await this.githubService.getSecurityAdvisories(owner, repo);
 
-      // Convert GitHub advisories to findings
       return advisories.map((advisory, index) => ({
         id: `github-finding-${Date.now()}-${index}`,
         title: advisory.summary || 'GitHub Security Advisory',
@@ -627,7 +588,7 @@ export class ScanExecutionService {
         recommendation: 'Review and address the security advisory',
         ghsa: advisory.ghsa_id,
         cve: advisory.cve_id,
-        owaspTop10Tags: ['A06', 'A08'] // Vulnerable Components and Software Integrity
+        owaspTop10Tags: ['A06', 'A08']
       }));
 
     } catch (error) {
@@ -635,7 +596,6 @@ export class ScanExecutionService {
       throw error;
     }
   }
-
 
   private calculateSummary(findings: any[]): ScanResult['summary'] {
     return {
@@ -647,7 +607,6 @@ export class ScanExecutionService {
     };
   }
 
-  // Severity mapping functions
   private mapOSVSeverityToSeverity(severity: any): string {
     if (!severity || !Array.isArray(severity)) return 'medium';
     
