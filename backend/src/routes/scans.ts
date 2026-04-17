@@ -17,6 +17,87 @@ const scanExecutionService = new ScanExecutionService();
 
 const runningScans = new Set<string>();
 
+async function getScannerHealth() {
+  const [zap, osv, trivy] = await Promise.all([
+    (async () => {
+      try {
+        const version = await zapService.getVersion();
+        return { available: true, version };
+      } catch (error) {
+        return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    })(),
+    (async () => {
+      try {
+        const results = await osvService.queryVulnerabilities({
+          name: 'react',
+          version: '18.2.0',
+          ecosystem: 'npm',
+        });
+        return { available: true, sampleCount: results.length };
+      } catch (error) {
+        return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    })(),
+    (async () => {
+      try {
+        const version = await trivyService.getVersion();
+        return { available: true, version };
+      } catch (error) {
+        return { available: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    })(),
+  ]);
+
+  return {
+    overallReady: zap.available || osv.available || trivy.available,
+    zap,
+    osv,
+    trivy,
+  };
+}
+
+function estimateDurationSeconds(tools: string[], health: Awaited<ReturnType<typeof getScannerHealth>>) {
+  let seconds = 30;
+
+  if (tools.includes('ZAP')) {
+    seconds += health.zap.available ? 8 * 60 : 45;
+  }
+  if (tools.includes('OSV')) {
+    seconds += health.osv.available ? 90 : 20;
+  }
+  if (tools.includes('Trivy')) {
+    seconds += health.trivy.available ? 4 * 60 : 30;
+  }
+  if (tools.includes('Semgrep') || tools.includes('GitHub')) {
+    seconds += 2 * 60;
+  }
+
+  return seconds;
+}
+
+function buildScanMessage(tools: string[], health: Awaited<ReturnType<typeof getScannerHealth>>, estimatedDuration: number) {
+  const issues: string[] = [];
+
+  if (tools.includes('ZAP') && !health.zap.available) {
+    issues.push('ZAP is offline');
+  }
+  if (tools.includes('Trivy') && !health.trivy.available) {
+    issues.push('Trivy is offline');
+  }
+  if (tools.includes('OSV') && !health.osv.available) {
+    issues.push('OSV is unreachable');
+  }
+
+  const estimatedMinutes = Math.max(1, Math.ceil(estimatedDuration / 60));
+
+  if (issues.length > 0) {
+    return `Preflight warning: ${issues.join(', ')}. This scan may finish quickly with partial coverage or no findings. Estimated time: about ${estimatedMinutes} minute${estimatedMinutes === 1 ? '' : 's'}.`;
+  }
+
+  return `Scan started. Estimated time: about ${estimatedMinutes} minute${estimatedMinutes === 1 ? '' : 's'} based on the selected tools.`;
+}
+
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const state = await dataStore.getState();
@@ -27,6 +108,23 @@ router.get('/', async (_req: Request, res: Response) => {
     res.json({
       success: true,
       data: scans,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+router.get('/health', async (_req: Request, res: Response) => {
+  try {
+    const health = await getScannerHealth();
+    res.json({
+      success: true,
+      data: health,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -100,16 +198,19 @@ router.post('/', async (req: Request, res: Response) => {
     };
 
     const jobId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const scannerHealth = await getScannerHealth();
+    const estimatedDuration = estimateDurationSeconds(scanPolicy.tools, scannerHealth);
+    const message = buildScanMessage(scanPolicy.tools, scannerHealth, estimatedDuration);
     const scanData: PersistedScan = {
       id: jobId,
       jobId,
       status: 'running',
       tools: scanPolicy.tools,
       startedAt: new Date().toISOString(),
-      estimatedDuration: 1800,
+      estimatedDuration,
       targetId,
       policyId,
-      message: 'Non-intrusive security scan started. This includes spider crawling and passive vulnerability analysis. Estimated duration: 20 minutes.',
+      message,
     };
 
     await dataStore.update((draft) => {
@@ -126,6 +227,7 @@ router.post('/', async (req: Request, res: Response) => {
       targetId,
       policyId,
       tools: scanPolicy.tools,
+      scannerHealth,
     });
 
     void executeScanInBackground(jobId, scanTarget, scanPolicy);
@@ -147,10 +249,10 @@ router.post('/', async (req: Request, res: Response) => {
 
 router.get('/test/zap', async (_req: Request, res: Response) => {
   try {
-    const alerts = await zapService.getAlerts();
+    const version = await zapService.getVersion();
     res.json({
       success: true,
-      data: { connected: true, alertCount: alerts.length },
+      data: { connected: true, version },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -202,10 +304,10 @@ router.get('/test/github', async (_req: Request, res: Response) => {
 
 router.get('/test/trivy', async (_req: Request, res: Response) => {
   try {
-    const results = await trivyService.scanImage('alpine:latest');
+    const version = await trivyService.getVersion();
     res.json({
       success: true,
-      data: { connected: true, vulnerabilityCount: results.vulnerabilities?.length || 0 },
+      data: { connected: true, version },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -351,12 +453,21 @@ async function executeScanInBackground(jobId: string, target: any, policy: any) 
       const scanIndex = draft.scans.findIndex((scan) => scan.jobId === jobId);
       if (scanIndex !== -1) {
         const existingScan = draft.scans[scanIndex];
+        const totalFindings = result.summary.total;
+        const finalMessage = result.errors && result.errors.length > 0
+          ? totalFindings === 0
+            ? `Scan completed with scanner errors and no findings. ${result.errors[0]}`
+            : `Scan completed with ${totalFindings} findings and some scanner errors.`
+          : totalFindings === 0
+            ? 'Scan completed with 0 findings.'
+            : `Scan completed with ${totalFindings} findings.`;
         const persistedResult: PersistedScan = {
           ...existingScan,
           id: result.jobId,
           ...result,
           targetId: existingScan.targetId,
           policyId: existingScan.policyId,
+          message: finalMessage,
         };
 
         draft.scans[scanIndex] = {
@@ -383,6 +494,7 @@ async function executeScanInBackground(jobId: string, target: any, policy: any) 
         scan.status = 'failed';
         scan.finishedAt = new Date().toISOString();
         scan.errors = [error instanceof Error ? error.message : 'Unknown error'];
+        scan.message = `Scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     });
 

@@ -4,7 +4,7 @@ import React from 'react';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   children: React.ReactNode;
 }
 
@@ -13,15 +13,15 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50"
+      className="fixed inset-0 z-50 bg-black/75 p-4 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 rounded-xl shadow-2xl p-8 w-full max-w-2xl"
+        className="mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-800 shadow-2xl sm:max-h-[calc(100vh-3rem)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">{title}</h2>
+        <div className="flex items-center justify-between border-b border-gray-700 px-5 py-4 sm:px-8 sm:py-5">
+          <h2 className="pr-4 text-xl font-bold text-white sm:text-2xl">{title || ''}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-3xl font-bold leading-none"
@@ -30,7 +30,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             &times;
           </button>
         </div>
-        <div>{children}</div>
+        <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-8 sm:py-6">{children}</div>
       </div>
     </div>
   );

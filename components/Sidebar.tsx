@@ -1,6 +1,7 @@
 import React from 'react';
 import { Page } from '../App';
 import { DashboardIcon, TargetIcon, PolicyIcon, FindingsIcon, ReportsIcon, AdminIcon } from './icons';
+import { useScannerHealth } from '../src/hooks/useApi';
 
 interface SidebarProps {
   currentPage: Page;
@@ -29,6 +30,7 @@ const NavItem: React.FC<{
 );
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, onClose }) => {
+  const { data: scannerHealth } = useScannerHealth();
   const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
     { page: 'Dashboard', label: 'Dashboard', icon: <DashboardIcon className="h-6 w-6" /> },
     { page: 'Targets', label: 'Targets', icon: <TargetIcon className="h-6 w-6" /> },
@@ -87,11 +89,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, i
           </ul>
         </nav>
 
-        <div className="mt-auto rounded-3xl border border-cyan-400/15 bg-cyan-400/5 p-4">
+        <div className={`mt-auto rounded-3xl border p-4 ${
+          scannerHealth?.zap.available
+            ? 'border-cyan-400/15 bg-cyan-400/5'
+            : 'border-yellow-500/20 bg-yellow-500/5'
+        }`}>
           <p className="eyebrow">Status</p>
-          <p className="mt-2 text-lg font-semibold text-white">Ready for live scans</p>
+          <p className="mt-2 text-lg font-semibold text-white">
+            {scannerHealth?.zap.available ? 'Web scanner online' : 'Web scanner offline'}
+          </p>
           <p className="mt-2 text-sm text-slate-400">
-            Frontend and backend can now be launched together from the repo root.
+            {scannerHealth?.zap.available
+              ? 'ZAP is reachable, so URL-based scans can collect real web findings.'
+              : 'Start Docker Desktop and run the scanner stack, or point ZAP to localhost:8082 for local scans.'}
           </p>
         </div>
       </aside>

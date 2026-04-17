@@ -93,6 +93,10 @@ export function useScanHistory() {
   return useApi(() => apiClient.getScans(), []);
 }
 
+export function useScannerHealth() {
+  return useApi(() => apiClient.getScannerHealth(), []);
+}
+
 export function useTargets() {
   const [targets, setTargets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

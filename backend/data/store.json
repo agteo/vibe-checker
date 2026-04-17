@@ -6,11 +6,20 @@
       "type": "web",
       "identifiers": "[{\"type\":\"url\",\"value\":\"https://example.com\"}]",
       "riskTier": "medium",
-      "lastScanAt": "2026-04-17T22:38:48.171Z",
+      "lastScanAt": "2026-04-17T23:31:52.929Z",
       "tags": [
         "persistence",
         "test"
       ]
+    },
+    {
+      "id": "target-1776466486030",
+      "name": "Breakbuddy",
+      "type": "web",
+      "identifiers": "https://breakbuddy.io",
+      "riskTier": "medium",
+      "lastScanAt": "2026-04-17T23:15:05.491Z",
+      "tags": []
     }
   ],
   "policies": [
@@ -80,8 +89,260 @@
     }
   ],
   "findings": [],
-  "scans": [],
+  "scans": [
+    {
+      "id": "scan_1776468709636_gkbpvcfnx",
+      "jobId": "scan_1776468709636_gkbpvcfnx",
+      "status": "completed",
+      "tools": [
+        "ZAP",
+        "OSV"
+      ],
+      "startedAt": "2026-04-17T23:31:52.963Z",
+      "estimatedDuration": 95,
+      "targetId": "target-1776465528171",
+      "policyId": "policy-default-safe",
+      "message": "Scan completed with scanner errors and no findings. Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed",
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "errors": [
+        "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+      ],
+      "finishedAt": "2026-04-17T23:31:55.960Z"
+    },
+    {
+      "id": "scan_1776467736903_38pbjmtke",
+      "jobId": "scan_1776467736903_38pbjmtke",
+      "status": "completed",
+      "tools": [
+        "ZAP",
+        "OSV"
+      ],
+      "startedAt": "2026-04-17T23:15:36.912Z",
+      "estimatedDuration": 1800,
+      "targetId": "target-1776465528171",
+      "policyId": "policy-default-safe",
+      "message": "Non-intrusive security scan started. This includes spider crawling and passive vulnerability analysis. Estimated duration: 20 minutes.",
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "errors": [
+        "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+      ],
+      "finishedAt": "2026-04-17T23:15:39.873Z"
+    },
+    {
+      "id": "scan_1776467705491_r3764x4cv",
+      "jobId": "scan_1776467705491_r3764x4cv",
+      "status": "completed",
+      "tools": [
+        "ZAP",
+        "OSV"
+      ],
+      "startedAt": "2026-04-17T23:15:05.503Z",
+      "estimatedDuration": 1800,
+      "targetId": "target-1776466486030",
+      "policyId": "policy-default-safe",
+      "message": "Non-intrusive security scan started. This includes spider crawling and passive vulnerability analysis. Estimated duration: 20 minutes.",
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "errors": [
+        "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+      ],
+      "finishedAt": "2026-04-17T23:15:08.436Z"
+    },
+    {
+      "id": "scan_1776466579666_4czkncfi0",
+      "jobId": "scan_1776466579666_4czkncfi0",
+      "status": "completed",
+      "tools": [
+        "ZAP",
+        "OSV"
+      ],
+      "startedAt": "2026-04-17T22:56:19.682Z",
+      "estimatedDuration": 1800,
+      "targetId": "target-1776466486030",
+      "policyId": "policy-default-safe",
+      "message": "Non-intrusive security scan started. This includes spider crawling and passive vulnerability analysis. Estimated duration: 20 minutes.",
+      "findings": [],
+      "summary": {
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0
+      },
+      "errors": [
+        "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+      ],
+      "finishedAt": "2026-04-17T22:56:22.896Z"
+    }
+  ],
   "auditLogs": [
+    {
+      "id": "faa68ba5-83d2-439b-9b33-fb4f4a8892e2",
+      "actorUserId": "system",
+      "action": "scan.completed",
+      "entityType": "scan",
+      "entityId": "scan_1776468709636_gkbpvcfnx",
+      "timestamp": "2026-04-17T23:31:55.973Z",
+      "metadata": {
+        "findings": 0,
+        "errors": [
+          "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+        ]
+      }
+    },
+    {
+      "id": "1c40e646-ff13-473b-8af8-8b2c0daa7323",
+      "actorUserId": "system",
+      "action": "scan.started",
+      "entityType": "scan",
+      "entityId": "scan_1776468709636_gkbpvcfnx",
+      "timestamp": "2026-04-17T23:31:52.945Z",
+      "metadata": {
+        "targetId": "target-1776465528171",
+        "policyId": "policy-default-safe",
+        "tools": [
+          "ZAP",
+          "OSV"
+        ],
+        "scannerHealth": {
+          "overallReady": false,
+          "zap": {
+            "available": false,
+            "error": "fetch failed"
+          },
+          "osv": {
+            "available": false,
+            "error": "OSV query failed: TypeError: fetch failed"
+          },
+          "trivy": {
+            "available": false,
+            "error": "fetch failed"
+          }
+        }
+      }
+    },
+    {
+      "id": "973a3fd1-fd82-4b94-bf5b-e9199c7b47c6",
+      "actorUserId": "system",
+      "action": "scan.completed",
+      "entityType": "scan",
+      "entityId": "scan_1776467736903_38pbjmtke",
+      "timestamp": "2026-04-17T23:15:39.876Z",
+      "metadata": {
+        "findings": 0,
+        "errors": [
+          "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+        ]
+      }
+    },
+    {
+      "id": "26e7006d-6ff6-455a-87b8-aba87ebf6d20",
+      "actorUserId": "system",
+      "action": "scan.started",
+      "entityType": "scan",
+      "entityId": "scan_1776467736903_38pbjmtke",
+      "timestamp": "2026-04-17T23:15:36.907Z",
+      "metadata": {
+        "targetId": "target-1776465528171",
+        "policyId": "policy-default-safe",
+        "tools": [
+          "ZAP",
+          "OSV"
+        ]
+      }
+    },
+    {
+      "id": "049144ba-13d5-4ac5-b425-7d2c4e9caf96",
+      "actorUserId": "system",
+      "action": "scan.completed",
+      "entityType": "scan",
+      "entityId": "scan_1776467705491_r3764x4cv",
+      "timestamp": "2026-04-17T23:15:08.442Z",
+      "metadata": {
+        "findings": 0,
+        "errors": [
+          "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+        ]
+      }
+    },
+    {
+      "id": "1ffefa53-f2aa-4ff9-8821-090ef6a4a36a",
+      "actorUserId": "system",
+      "action": "scan.started",
+      "entityType": "scan",
+      "entityId": "scan_1776467705491_r3764x4cv",
+      "timestamp": "2026-04-17T23:15:05.496Z",
+      "metadata": {
+        "targetId": "target-1776466486030",
+        "policyId": "policy-default-safe",
+        "tools": [
+          "ZAP",
+          "OSV"
+        ]
+      }
+    },
+    {
+      "id": "72f0ccdc-d4fe-4afd-a565-847e5fdcf587",
+      "actorUserId": "system",
+      "action": "scan.completed",
+      "entityType": "scan",
+      "entityId": "scan_1776466579666_4czkncfi0",
+      "timestamp": "2026-04-17T22:56:22.935Z",
+      "metadata": {
+        "findings": 0,
+        "errors": [
+          "Tool ZAP failed: Error: ZAP spider failed: TypeError: fetch failed"
+        ]
+      }
+    },
+    {
+      "id": "73362688-fca1-4626-9069-66abbb73e361",
+      "actorUserId": "system",
+      "action": "scan.started",
+      "entityType": "scan",
+      "entityId": "scan_1776466579666_4czkncfi0",
+      "timestamp": "2026-04-17T22:56:19.673Z",
+      "metadata": {
+        "targetId": "target-1776466486030",
+        "policyId": "policy-default-safe",
+        "tools": [
+          "ZAP",
+          "OSV"
+        ]
+      }
+    },
+    {
+      "id": "dc228069-388e-4e4f-a055-f56797601ce2",
+      "actorUserId": "system",
+      "action": "target.created",
+      "entityType": "target",
+      "entityId": "target-1776466486030",
+      "timestamp": "2026-04-17T22:54:46.042Z",
+      "metadata": {
+        "name": "Breakbuddy",
+        "type": "web"
+      }
+    },
     {
       "id": "50103e79-e07a-4021-b129-b0c104109435",
       "actorUserId": "system",

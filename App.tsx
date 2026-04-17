@@ -97,10 +97,6 @@ function App() {
     refetchFindings();
     refetchScans();
     refetchAuditLogs();
-    // Show notification when findings are refreshed
-    if ((window as any).addNotification) {
-      (window as any).addNotification('Scan completed! Findings have been updated.', 'success');
-    }
   };
 
   return (

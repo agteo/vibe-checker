@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { TargetApp, ScanPolicy } from '../types';
-import { useScans } from '../src/hooks/useApi';
+import { useScannerHealth, useScans } from '../src/hooks/useApi';
 
 interface RunScanWizardProps {
   isOpen: boolean;
@@ -22,8 +22,26 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({
   const [ownershipAttested, setOwnershipAttested] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const { startScan } = useScans();
+  const { data: scannerHealth } = useScannerHealth();
 
   const selectedPolicy = policies.find((policy) => policy.id === selectedPolicyId);
+  const selectedTools = selectedPolicy?.allowedTools || [];
+  const requiresZap = selectedTools.includes('ZAP');
+  const requiresOsv = selectedTools.includes('OSV');
+  const requiresTrivy = selectedTools.includes('Trivy');
+  const selectedEstimateMinutes = selectedPolicy
+    ? Math.max(
+        1,
+        Math.ceil(
+          (
+            0.5 +
+            (requiresZap ? (scannerHealth?.zap.available ? 8 : 0.75) : 0) +
+            (requiresOsv ? (scannerHealth?.osv.available ? 1.5 : 0.25) : 0) +
+            (requiresTrivy ? (scannerHealth?.trivy.available ? 4 : 0.5) : 0)
+          )
+        )
+      )
+    : null;
 
   useEffect(() => {
     if (!isOpen) {
@@ -147,6 +165,35 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({
             <div className="mt-3 p-2 bg-green-900/20 border border-green-600/30 rounded text-xs text-green-200">
               Passive mode only uses crawling and passive analysis. No intrusive tests are performed.
             </div>
+            {selectedEstimateMinutes && (
+              <div className="mt-3 rounded border border-cyan-500/30 bg-cyan-500/10 p-2 text-xs text-cyan-100">
+                Expected runtime: about {selectedEstimateMinutes} minute{selectedEstimateMinutes === 1 ? '' : 's'} with the currently selected tools.
+              </div>
+            )}
+          </div>
+        )}
+
+        {scannerHealth && (
+          <div className={`rounded-lg border p-4 text-sm ${
+            scannerHealth.overallReady ? 'border-cyan-500/25 bg-cyan-500/10 text-cyan-100' : 'border-yellow-600/40 bg-yellow-900/20 text-yellow-100'
+          }`}>
+            <div className="font-bold mb-2">Scanner Preflight</div>
+            <div className="space-y-1">
+              {requiresZap && (
+                <div>ZAP: {scannerHealth.zap.available ? `online${scannerHealth.zap.version ? ` (${scannerHealth.zap.version})` : ''}` : 'offline'}</div>
+              )}
+              {requiresOsv && (
+                <div>OSV: {scannerHealth.osv.available ? 'online' : 'offline'}</div>
+              )}
+              {requiresTrivy && (
+                <div>Trivy: {scannerHealth.trivy.available ? `online${scannerHealth.trivy.version ? ` (${scannerHealth.trivy.version})` : ''}` : 'offline'}</div>
+              )}
+            </div>
+            {requiresZap && !scannerHealth.zap.available && (
+              <div className="mt-2 text-yellow-200">
+                Web scans may complete quickly with zero findings until ZAP is running and reachable.
+              </div>
+            )}
           </div>
         )}
 
@@ -192,7 +239,8 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({
           </div>
         )}
 
-        <div className="flex justify-end pt-4 space-x-4">
+        <div className="-mx-5 border-t border-gray-700 px-5 pt-4 sm:-mx-8 sm:px-8">
+          <div className="flex justify-end space-x-4">
           <button
             onClick={onClose}
             disabled={isStarting}
@@ -207,6 +255,7 @@ export const RunScanWizard: React.FC<RunScanWizardProps> = ({
           >
             {isStarting ? 'Starting...' : 'Start Scan'}
           </button>
+          </div>
         </div>
       </div>
     </Modal>

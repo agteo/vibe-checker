@@ -53,6 +53,26 @@ export const ScanProgress: React.FC<ScanProgressProps> = ({
               return;
             }
 
+            if (result.status === 'failed') {
+              window.addNotification?.(
+                `Scan ${scan.jobId.split('_')[1]} failed${result.errors?.[0] ? `: ${result.errors[0]}` : '.'}`,
+                'error',
+                10000
+              );
+            } else if (result.errors && result.errors.length > 0) {
+              window.addNotification?.(
+                `Scan ${scan.jobId.split('_')[1]} completed with scanner errors and ${result.findings?.length || 0} findings.`,
+                'warning',
+                10000
+              );
+            } else {
+              window.addNotification?.(
+                `Scan ${scan.jobId.split('_')[1]} completed with ${result.findings?.length || 0} findings.`,
+                'success',
+                8000
+              );
+            }
+
             setTimeoutAlerts((prev) => {
               const next = new Set(prev);
               next.delete(scan.jobId);

@@ -3,16 +3,40 @@ import { getJson } from './httpClient.js';
 export class ZapService {
   private baseUrl: string;
   private apiKey: string;
+  private fallbackUrls: string[];
 
   constructor(baseUrl: string, apiKey?: string) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey || '';
+    this.fallbackUrls = ['http://localhost:8082', 'http://127.0.0.1:8082'];
+  }
+
+  private async requestJson<T>(path: string): Promise<T> {
+    const candidates = Array.from(new Set([this.baseUrl, ...this.fallbackUrls]));
+    let lastError: unknown;
+
+    for (const baseUrl of candidates) {
+      try {
+        const response = await getJson<T>(`${baseUrl}${path}`);
+        this.baseUrl = baseUrl;
+        return response;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Unable to reach ZAP');
+  }
+
+  async getVersion(): Promise<string> {
+    const response = await this.requestJson<{ version?: string }>('/JSON/core/view/version/');
+    return response.version || 'unknown';
   }
 
   async startSpider(targetUrl: string): Promise<string> {
     try {
-      const response = await getJson<{ scan: string }>(
-        `${this.baseUrl}/JSON/spider/action/scan/?url=${encodeURIComponent(targetUrl)}`
+      const response = await this.requestJson<{ scan: string }>(
+        `/JSON/spider/action/scan/?url=${encodeURIComponent(targetUrl)}`
       );
       return response.scan;
     } catch (error) {
@@ -22,7 +46,7 @@ export class ZapService {
 
   async getSpiderStatus(scanId: string): Promise<{ status: string }> {
     try {
-      return await getJson(`${this.baseUrl}/JSON/spider/view/status/?scanId=${scanId}`);
+      return await this.requestJson(`/JSON/spider/view/status/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP spider status: ${error}`);
     }
@@ -30,7 +54,7 @@ export class ZapService {
 
   async getSpiderProgress(scanId: string): Promise<{ results?: string[] }> {
     try {
-      return await getJson(`${this.baseUrl}/JSON/spider/view/results/?scanId=${scanId}`);
+      return await this.requestJson(`/JSON/spider/view/results/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP spider progress: ${error}`);
     }
@@ -38,8 +62,8 @@ export class ZapService {
 
   async startActiveScan(targetUrl: string): Promise<string> {
     try {
-      const response = await getJson<{ scan: string }>(
-        `${this.baseUrl}/JSON/ascan/action/scan/?url=${encodeURIComponent(targetUrl)}`
+      const response = await this.requestJson<{ scan: string }>(
+        `/JSON/ascan/action/scan/?url=${encodeURIComponent(targetUrl)}`
       );
       return response.scan;
     } catch (error) {
@@ -49,7 +73,7 @@ export class ZapService {
 
   async getActiveScanStatus(scanId: string): Promise<{ status: string }> {
     try {
-      return await getJson(`${this.baseUrl}/JSON/ascan/view/status/?scanId=${scanId}`);
+      return await this.requestJson(`/JSON/ascan/view/status/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP active scan status: ${error}`);
     }
@@ -57,7 +81,7 @@ export class ZapService {
 
   async getActiveScanProgress(scanId: string): Promise<{ rulesCompleted?: number }> {
     try {
-      return await getJson(`${this.baseUrl}/JSON/ascan/view/scanProgress/?scanId=${scanId}`);
+      return await this.requestJson(`/JSON/ascan/view/scanProgress/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP active scan progress: ${error}`);
     }
@@ -93,7 +117,7 @@ export class ZapService {
 
   async getAlerts(): Promise<any[]> {
     try {
-      const response = await getJson<{ alerts?: any[] }>(`${this.baseUrl}/JSON/core/view/alerts/`);
+      const response = await this.requestJson<{ alerts?: any[] }>('/JSON/core/view/alerts/');
       return response.alerts || [];
     } catch (error) {
       throw new Error(`Failed to get ZAP alerts: ${error}`);
@@ -102,7 +126,7 @@ export class ZapService {
 
   async getSpiderResults(): Promise<any[]> {
     try {
-      const response = await getJson<{ results?: any[] }>(`${this.baseUrl}/JSON/spider/view/results/`);
+      const response = await this.requestJson<{ results?: any[] }>('/JSON/spider/view/results/');
       return response.results || [];
     } catch (error) {
       throw new Error(`Failed to get ZAP spider results: ${error}`);
@@ -111,7 +135,7 @@ export class ZapService {
 
   async accessUrl(targetUrl: string): Promise<void> {
     try {
-      await getJson(`${this.baseUrl}/JSON/core/action/accessUrl/?url=${encodeURIComponent(targetUrl)}`);
+      await this.requestJson(`/JSON/core/action/accessUrl/?url=${encodeURIComponent(targetUrl)}`);
     } catch (error) {
       throw new Error(`Failed to access URL in ZAP: ${error}`);
     }
@@ -119,7 +143,7 @@ export class ZapService {
 
   async generateReport(format: 'JSON' | 'HTML' | 'XML' = 'JSON'): Promise<any> {
     try {
-      return await getJson(`${this.baseUrl}/OTHER/core/other/report/?format=${format}`);
+      return await this.requestJson(`/OTHER/core/other/report/?format=${format}`);
     } catch (error) {
       throw new Error(`Failed to generate ZAP report: ${error}`);
     }

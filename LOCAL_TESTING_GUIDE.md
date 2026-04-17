@@ -13,6 +13,13 @@ This guide will help you run Vibe Check locally to test the features:
 - **Node.js 18+** (for local development if not using Docker)
 - **Git**
 
+### Read this first
+- On Windows, open Docker Desktop before running any Docker command.
+- Wait until Docker Desktop says Docker is running.
+- `npm run dev` from the repo root starts only the frontend and backend.
+- `npm run dev` does **not** start ZAP, Trivy, or Redis.
+- If the UI loads but scans return zero findings with warnings, scanner services are usually offline.
+
 ### Step 1: Setup Environment
 
 ```powershell
@@ -37,7 +44,7 @@ if (!(Test-Path .env)) {
 
 ```powershell
 # Start all services (frontend, backend, ZAP, Trivy, Redis)
-docker-compose up -d
+docker compose up -d
 
 # Or use the dev script (if on Linux/Mac)
 # chmod +x scripts/dev.sh
@@ -50,13 +57,16 @@ docker-compose up -d
 
 ```powershell
 # Check if containers are running
-docker-compose ps
+docker compose ps
 
 # Test backend health
 curl http://localhost:3001/health
 
 # Test ZAP (should return version info)
 curl http://localhost:8082/JSON/core/view/version/
+
+# Test scanner readiness through the backend
+curl http://localhost:3001/api/scans/health
 ```
 
 ### Step 4: Access the Application
@@ -121,7 +131,7 @@ curl http://localhost:8082/JSON/core/view/version/
 
 ## 🔧 Alternative: Run Without Docker (Development Mode)
 
-If you prefer to run frontend/backend separately:
+Use this mode only if you intentionally want the frontend/backend outside Docker.
 
 ### Terminal 1: Backend
 
@@ -137,7 +147,7 @@ npm run dev
 ```powershell
 # In project root
 npm install
-npm run dev
+npm run dev:frontend
 # Frontend runs on http://localhost:3000
 ```
 
@@ -145,10 +155,37 @@ npm run dev
 
 ```powershell
 # Start just ZAP, Trivy, and Redis
-docker-compose up zap trivy redis -d
+docker compose up -d zap trivy redis
 ```
 
-**Note**: You'll need to update `.env` to point to `http://localhost:8082` for ZAP instead of `http://zap:8080`.
+**Important**: Update `.env` when the backend runs locally:
+
+```powershell
+ZAP_API_URL=http://localhost:8082
+TRIVY_API_URL=http://localhost:8081
+REDIS_URL=redis://localhost:6379
+```
+
+Do not use Docker-only hostnames like `http://zap:8080` from a backend process running on your machine.
+
+### Which command should I use?
+
+Option A: Beginner / safest path
+```powershell
+docker compose up -d
+```
+
+Option B: Local frontend/backend, Docker scanners
+```powershell
+docker compose up -d zap trivy redis
+```
+
+Option C: Repo-root `npm run dev`
+```powershell
+npm run dev
+```
+
+This starts only frontend and backend. It does not start ZAP, Trivy, or Redis.
 
 ## 🐛 Troubleshooting
 
@@ -157,13 +194,13 @@ docker-compose up zap trivy redis -d
 **Solution**:
 ```powershell
 # Check if ZAP container is running
-docker-compose ps
+docker compose ps
 
 # Check ZAP logs
-docker-compose logs zap
+docker compose logs zap
 
 # Restart ZAP
-docker-compose restart zap
+docker compose restart zap
 
 # Wait 60 seconds for ZAP to fully start
 ```
@@ -173,10 +210,10 @@ docker-compose restart zap
 **Solution**:
 ```powershell
 # Check backend logs
-docker-compose logs backend
+docker compose logs backend
 
 # Restart backend
-docker-compose restart backend
+docker compose restart backend
 
 # Or if running locally
 cd backend
@@ -201,10 +238,27 @@ netstat -ano | findstr :3001
 # Stop the process or change ports in docker-compose.yml
 ```
 
+### Issue: "Scan completed with 0 findings"
+
+This usually means scanners were offline or unreachable.
+
+Check:
+
+```powershell
+curl http://localhost:3001/api/scans/health
+curl http://localhost:8082/JSON/core/view/version/
+```
+
+If Docker is not running:
+
+```powershell
+docker compose up -d zap trivy redis
+```
+
 ## 📝 Test Scenarios
 
 ### Scenario 1: Quick Test (5 minutes)
-1. Start services: `docker-compose up -d`
+1. Start services: `docker compose up -d`
 2. Open http://localhost:3000
 3. Create a target with URL: `http://testphp.vulnweb.com`
 4. Run "Quick Scan" policy

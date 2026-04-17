@@ -20,6 +20,39 @@ const JOB_STATUS_COLORS: { [key in JobStatus]: string } = {
   [JobStatus.Cancelled]: 'bg-yellow-600',
 };
 
+const describeScanOutcome = (job: ScanJob) => {
+  if (job.status === JobStatus.Running || job.status === JobStatus.Queued) {
+    const minutes = job.estimatedDuration ? Math.max(1, Math.ceil(job.estimatedDuration / 60)) : null;
+    return minutes
+      ? `In progress. Estimated runtime: about ${minutes} minute${minutes === 1 ? '' : 's'}.`
+      : 'In progress.';
+  }
+
+  if (job.status === JobStatus.Cancelled) {
+    return 'Cancelled before completion.';
+  }
+
+  if (job.errors && job.errors.length > 0) {
+    if ((job.summary?.total || 0) === 0) {
+      return `Completed with scanner issues and no findings. ${job.errors[0]}`;
+    }
+    return `Completed with ${job.summary?.total || 0} findings and scanner issues.`;
+  }
+
+  if (job.status === JobStatus.Completed) {
+    const total = job.summary?.total || 0;
+    return total === 0
+      ? 'Completed with 0 findings.'
+      : `Completed with ${total} finding${total === 1 ? '' : 's'}.`;
+  }
+
+  if (job.status === JobStatus.Failed) {
+    return job.errors?.[0] || 'Scan failed before results were collected.';
+  }
+
+  return 'No additional scan details available.';
+};
+
 interface StatCardProps {
   title: string;
   value: string | number;
@@ -77,7 +110,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="max-w-2xl">
             <p className="eyebrow">Threat Posture</p>
             <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Security operations without the generic dashboard chrome.
+              Run scans, review findings, and move quickly from signal to response.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
               Watch active scans, pressure-test risky targets, and move straight from signal to action.
@@ -144,6 +177,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <div>
                   <p className="font-medium text-white">Target: {targets.find((target) => target.id === job.targetId)?.name}</p>
                   <p className="text-sm text-gray-400">Policy: {job.policyId}</p>
+                  <p className="mt-2 max-w-xl text-xs text-slate-400">{describeScanOutcome(job)}</p>
                 </div>
                 <div className="flex items-center">
                   <span className={`w-3 h-3 rounded-full mr-2 ${JOB_STATUS_COLORS[job.status]}`}></span>

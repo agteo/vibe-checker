@@ -26,6 +26,7 @@ export interface ScanJobResponse {
   message?: string;
   findings?: any[];
   summary?: any;
+  errors?: string[];
 }
 
 export interface FindingFilters {
@@ -48,6 +49,25 @@ export interface AuditLogResponse {
   entityType: string;
   entityId: string;
   timestamp: string;
+}
+
+export interface ScannerHealth {
+  overallReady: boolean;
+  zap: {
+    available: boolean;
+    version?: string;
+    error?: string;
+  };
+  osv: {
+    available: boolean;
+    sampleCount?: number;
+    error?: string;
+  };
+  trivy: {
+    available: boolean;
+    version?: string;
+    error?: string;
+  };
 }
 
 class ApiClient {
@@ -116,6 +136,10 @@ class ApiClient {
 
   async getScans(): Promise<ApiResponse<ScanJobResponse[]>> {
     return this.request<ScanJobResponse[]>('/api/scans');
+  }
+
+  async getScannerHealth(): Promise<ApiResponse<ScannerHealth>> {
+    return this.request<ScannerHealth>('/api/scans/health');
   }
 
   // Data Management

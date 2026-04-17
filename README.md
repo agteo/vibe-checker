@@ -31,35 +31,82 @@ A comprehensive security orchestration tool that safely orchestrates automated s
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
-- Node.js 18+ (for development)
+- Docker Desktop on Windows, or Docker Engine on Linux/macOS
+- Docker Compose / `docker compose`
+- Node.js 18+ if you want to run frontend or backend outside Docker
 - Git
 
-### 1. Clone and Setup
+### 1. Clone the repo
 ```bash
 git clone <your-repo-url>
 cd vibe-check
 ```
 
-### 2. Configure Environment
+### 2. Create `.env`
 ```bash
-# Copy environment template
 cp env.example .env
-
-# Edit .env with your API keys (see API Keys section below)
-nano .env
 ```
 
-### 3. Start Development Environment
+For a first run, you can leave most values unchanged.
+
+### 3. Start the full stack
 ```bash
-# Make script executable and run
-chmod +x scripts/dev.sh
-./scripts/dev.sh
+docker compose up -d
 ```
 
-**That's it!** The development environment will start automatically.
+If your machine only supports the older syntax:
+```bash
+docker-compose up -d
+```
+
+### 4. Wait for scanners to start
+Give ZAP 30-60 seconds on first startup.
+
+### 5. Verify the stack is ready
+```bash
+curl http://localhost:3001/health
+curl http://localhost:8082/JSON/core/view/version/
+curl http://localhost:3001/api/scans/health
+```
 
 ## 🌐 Access Points
+
+Before you begin, choose a setup mode:
+
+- Beginner path: run the full stack with `docker compose up -d`
+- Local app + Docker scanners: run frontend/backend with `npm`, but start `zap`, `trivy`, and `redis` with Docker
+- Repo-root `npm run dev`: starts only the frontend and backend. It does **not** start scanner services
+
+Important beginner notes:
+
+- On Windows, open Docker Desktop first and wait until it says Docker is running.
+- If Docker is not running, the UI may load but scans can finish with warnings and zero findings because ZAP and Trivy are offline.
+- If your backend runs locally instead of inside Docker, use localhost scanner URLs in `.env`:
+
+```bash
+ZAP_API_URL=http://localhost:8082
+TRIVY_API_URL=http://localhost:8081
+REDIS_URL=redis://localhost:6379
+```
+
+- Docker-only hostnames like `http://zap:8080` and `http://trivy:8080` work when the backend runs inside Docker, not when it runs directly on your machine.
+
+Recommended first run:
+
+```bash
+cp env.example .env
+docker compose up -d
+```
+
+Wait 30-60 seconds for ZAP to finish starting, then verify:
+
+```bash
+curl http://localhost:3001/health
+curl http://localhost:8082/JSON/core/view/version/
+curl http://localhost:3001/api/scans/health
+```
+
+Only start a web scan after those checks succeed.
 
 Once running, you can access:
 - **Frontend**: http://localhost:3000
@@ -253,28 +300,28 @@ vibe-check/
 
 ### Start All Services
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### View Logs
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f zap
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs -f zap
 ```
 
 ### Stop Services
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ### Rebuild Containers
 ```bash
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
 ### Backend Development
@@ -287,8 +334,15 @@ npm run dev
 ### Frontend Development
 ```bash
 npm install
+npm run dev:frontend
+```
+
+### Frontend + Backend Only
+```bash
 npm run dev
 ```
+
+This does not start ZAP, Trivy, or Redis.
 
 ## 🧪 Testing API Connections
 
@@ -306,6 +360,9 @@ curl http://localhost:3001/api/scans/test/github
 
 # Test Trivy connection
 curl http://localhost:3001/api/scans/test/trivy
+
+# Test combined scanner readiness
+curl http://localhost:3001/api/scans/health
 ```
 
 ## 🔒 Security Features
@@ -393,10 +450,10 @@ REDIS_URL=redis://your-redis-host:6379
 docker info
 
 # Check service status
-docker-compose ps
+docker compose ps
 
 # View service logs
-docker-compose logs [service-name]
+docker compose logs [service-name]
 ```
 
 **API connection errors:**
@@ -406,7 +463,17 @@ curl http://localhost:3001/health
 
 # Check ZAP is running
 curl http://localhost:8082/JSON/core/view/version/
+
+# Check backend scanner readiness
+curl http://localhost:3001/api/scans/health
 ```
+
+**Scans finish quickly with 0 findings:**
+```bash
+curl http://localhost:3001/api/scans/health
+```
+
+That usually means scanner services are offline or unreachable. If your backend runs locally, make sure `.env` uses `localhost:8082` and `localhost:8081` rather than Docker hostnames.
 
 **Port conflicts:**
 ```bash

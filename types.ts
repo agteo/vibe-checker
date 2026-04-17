@@ -144,6 +144,7 @@ export interface ScanJob {
     medium: number;
     low: number;
   };
+  errors?: string[];
 }
 
 export interface AuditLog {
