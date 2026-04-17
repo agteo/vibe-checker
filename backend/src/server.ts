@@ -7,6 +7,8 @@ import { scanRouter } from './routes/scans.js';
 import { targetsRouter } from './routes/targets.js';
 import { findingsRouter } from './routes/findings.js';
 import { policiesRouter } from './routes/policies.js';
+import { adminRouter } from './routes/admin.js';
+import { dataStore } from './services/dataStore.js';
 
 dotenv.config();
 
@@ -24,10 +26,13 @@ app.use('/api/scans', scanRouter);
 app.use('/api/targets', targetsRouter);
 app.use('/api/findings', findingsRouter);
 app.use('/api/policies', policiesRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
+
+await dataStore.init();
 
 const server = app.listen(PORT, () => {
   const address = server.address() as AddressInfo | null;

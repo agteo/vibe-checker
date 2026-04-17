@@ -1,0 +1,116 @@
+{
+  "targets": [
+    {
+      "id": "target-1776465528171",
+      "name": "Persist Test 5323191a",
+      "type": "web",
+      "identifiers": "[{\"type\":\"url\",\"value\":\"https://example.com\"}]",
+      "riskTier": "medium",
+      "lastScanAt": "2026-04-17T22:38:48.171Z",
+      "tags": [
+        "persistence",
+        "test"
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "id": "policy-default-safe",
+      "name": "Safe Default",
+      "mode": "passive",
+      "maxReqPerMin": 120,
+      "spiderDepth": 5,
+      "allowedTools": [
+        "ZAP",
+        "OSV"
+      ],
+      "description": "Comprehensive security scan with moderate speed. Best for production applications. Non-intrusive passive scanning only.",
+      "exclusions": []
+    },
+    {
+      "id": "policy-quick-scan",
+      "name": "Quick Scan",
+      "mode": "passive",
+      "maxReqPerMin": 200,
+      "spiderDepth": 1,
+      "allowedTools": [
+        "ZAP",
+        "OSV"
+      ],
+      "description": "Faster scan with basic coverage. Good for development and testing. Non-intrusive passive scanning only.",
+      "exclusions": []
+    },
+    {
+      "id": "policy-comprehensive",
+      "name": "Comprehensive Scan",
+      "mode": "passive",
+      "maxReqPerMin": 80,
+      "spiderDepth": 10,
+      "allowedTools": [
+        "ZAP",
+        "OSV"
+      ],
+      "description": "Thorough security analysis with deep crawling. Recommended for critical applications. Non-intrusive passive scanning only.",
+      "exclusions": []
+    },
+    {
+      "id": "policy-dependency-only",
+      "name": "Dependency Check",
+      "mode": "passive",
+      "maxReqPerMin": 100,
+      "spiderDepth": 1,
+      "allowedTools": [
+        "OSV"
+      ],
+      "description": "Quick dependency vulnerability check only. Fastest option for package scanning.",
+      "exclusions": []
+    },
+    {
+      "id": "policy-passive-only",
+      "name": "Passive Scan (Non-Intrusive)",
+      "mode": "passive",
+      "maxReqPerMin": 150,
+      "spiderDepth": 5,
+      "allowedTools": [
+        "ZAP",
+        "OSV"
+      ],
+      "description": "Non-intrusive scan using spider and passive scanning only. Safe for production environments. No active vulnerability testing.",
+      "exclusions": []
+    }
+  ],
+  "findings": [],
+  "scans": [],
+  "auditLogs": [
+    {
+      "id": "50103e79-e07a-4021-b129-b0c104109435",
+      "actorUserId": "system",
+      "action": "admin.settings.updated",
+      "entityType": "settings",
+      "entityId": "global",
+      "timestamp": "2026-04-17T22:38:48.303Z",
+      "metadata": {
+        "dataRetentionDays": 120,
+        "scanConcurrencyCap": 7,
+        "defaultRateLimit": 140
+      }
+    },
+    {
+      "id": "3c132c98-58b0-41c0-8a43-c8ca871dc625",
+      "actorUserId": "system",
+      "action": "target.created",
+      "entityType": "target",
+      "entityId": "target-1776465528171",
+      "timestamp": "2026-04-17T22:38:48.180Z",
+      "metadata": {
+        "name": "Persist Test 5323191a",
+        "type": "web"
+      }
+    }
+  ],
+  "settings": {
+    "dataRetentionDays": 120,
+    "scanConcurrencyCap": 7,
+    "defaultRateLimit": 140
+  }
+}

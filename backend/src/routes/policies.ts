@@ -1,86 +1,51 @@
 import { Router, type Request, type Response } from 'express';
-
+import { dataStore } from '../services/dataStore.js';
 const router = Router();
 
-const mockPolicies = [
-  {
-    id: 'policy-default-safe',
-    name: 'Safe Default',
-    mode: 'passive',
-    maxReqPerMin: 120,
-    spiderDepth: 5,
-    allowedTools: ['ZAP', 'OSV'],
-    description: 'Comprehensive security scan with moderate speed. Best for production applications. Non-intrusive passive scanning only.',
-    exclusions: [],
-  },
-  {
-    id: 'policy-quick-scan',
-    name: 'Quick Scan',
-    mode: 'passive',
-    maxReqPerMin: 200,
-    spiderDepth: 1,
-    allowedTools: ['ZAP', 'OSV'],
-    description: 'Faster scan with basic coverage. Good for development and testing. Non-intrusive passive scanning only.',
-    exclusions: [],
-  },
-  {
-    id: 'policy-comprehensive',
-    name: 'Comprehensive Scan',
-    mode: 'passive',
-    maxReqPerMin: 80,
-    spiderDepth: 10,
-    allowedTools: ['ZAP', 'OSV'],
-    description: 'Thorough security analysis with deep crawling. Recommended for critical applications. Non-intrusive passive scanning only.',
-    exclusions: [],
-  },
-  {
-    id: 'policy-dependency-only',
-    name: 'Dependency Check',
-    mode: 'passive',
-    maxReqPerMin: 100,
-    spiderDepth: 1,
-    allowedTools: ['OSV'],
-    description: 'Quick dependency vulnerability check only. Fastest option for package scanning.',
-    exclusions: [],
-  },
-  {
-    id: 'policy-passive-only',
-    name: 'Passive Scan (Non-Intrusive)',
-    mode: 'passive',
-    maxReqPerMin: 150,
-    spiderDepth: 5,
-    allowedTools: ['ZAP', 'OSV'],
-    description: 'Non-intrusive scan using spider and passive scanning only. Safe for production environments. No active vulnerability testing.',
-    exclusions: [],
-  },
-];
-
-router.get('/', (_req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: mockPolicies,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-router.get('/:id', (req: Request, res: Response) => {
-  const policy = mockPolicies.find((entry) => entry.id === req.params.id);
-  if (!policy) {
-    return res.status(404).json({
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const state = await dataStore.getState();
+    res.json({
+      success: true,
+      data: state.policies,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
       success: false,
-      error: 'Policy not found',
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString(),
     });
   }
-
-  return res.json({
-    success: true,
-    data: policy,
-    timestamp: new Date().toISOString(),
-  });
 });
 
-router.post('/', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const state = await dataStore.getState();
+    const policy = state.policies.find((entry) => entry.id === req.params.id);
+    if (!policy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Policy not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: policy,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, mode, maxReqPerMin, spiderDepth, allowedTools, exclusions, description } = req.body;
 
@@ -103,7 +68,10 @@ router.post('/', (req: Request, res: Response) => {
       exclusions: exclusions || [],
     };
 
-    mockPolicies.push(newPolicy);
+    await dataStore.update((draft) => {
+      draft.policies.push(newPolicy);
+    });
+    await dataStore.appendAuditLog('policy.created', 'policy', newPolicy.id, { name, mode });
 
     return res.status(201).json({
       success: true,
@@ -119,9 +87,25 @@ router.post('/', (req: Request, res: Response) => {
   }
 });
 
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const policyIndex = mockPolicies.findIndex((entry) => entry.id === req.params.id);
+    let updatedPolicy: any = null;
+    const state = await dataStore.update((draft) => {
+      const policyIndex = draft.policies.findIndex((entry) => entry.id === req.params.id);
+      if (policyIndex === -1) {
+        return;
+      }
+
+      draft.policies[policyIndex] = {
+        ...draft.policies[policyIndex],
+        ...req.body,
+        id: req.params.id,
+      };
+
+      updatedPolicy = draft.policies[policyIndex];
+    });
+
+    const policyIndex = state.policies.findIndex((entry) => entry.id === req.params.id);
     if (policyIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -130,15 +114,11 @@ router.put('/:id', (req: Request, res: Response) => {
       });
     }
 
-    mockPolicies[policyIndex] = {
-      ...mockPolicies[policyIndex],
-      ...req.body,
-      id: req.params.id,
-    };
+    await dataStore.appendAuditLog('policy.updated', 'policy', req.params.id, req.body);
 
     return res.json({
       success: true,
-      data: mockPolicies[policyIndex],
+      data: updatedPolicy,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -150,9 +130,10 @@ router.put('/:id', (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const policyIndex = mockPolicies.findIndex((entry) => entry.id === req.params.id);
+    const state = await dataStore.getState();
+    const policyIndex = state.policies.findIndex((entry) => entry.id === req.params.id);
     if (policyIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -161,7 +142,10 @@ router.delete('/:id', (req: Request, res: Response) => {
       });
     }
 
-    mockPolicies.splice(policyIndex, 1);
+    await dataStore.update((draft) => {
+      draft.policies = draft.policies.filter((entry) => entry.id !== req.params.id);
+    });
+    await dataStore.appendAuditLog('policy.deleted', 'policy', req.params.id);
 
     return res.json({
       success: true,

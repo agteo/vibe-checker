@@ -1,23 +1,35 @@
 import { Router, type Request, type Response } from 'express';
+import { dataStore } from '../services/dataStore.js';
 
 const router = Router();
-const mockFindings: any[] = [];
 
-export const addFindingsFromScan = (findings: any[]) => {
-  findings.forEach((finding) => {
-    const existingIndex = mockFindings.findIndex((existingFinding) => existingFinding.id === finding.id);
-    if (existingIndex === -1) {
-      mockFindings.push(finding);
-    } else {
-      mockFindings[existingIndex] = finding;
-    }
+export const addFindingsFromScan = async (findings: any[]) => {
+  await dataStore.update((draft) => {
+    findings.forEach((finding) => {
+      const normalizedFinding = {
+        ...finding,
+        lastSeenAt: finding.lastSeenAt || finding.lastUpdatedAt || new Date().toISOString(),
+      };
+
+      const existingIndex = draft.findings.findIndex((existingFinding) => existingFinding.id === finding.id);
+      if (existingIndex === -1) {
+        draft.findings.push(normalizedFinding);
+      } else {
+        draft.findings[existingIndex] = {
+          ...draft.findings[existingIndex],
+          ...normalizedFinding,
+          lastSeenAt: new Date().toISOString(),
+        };
+      }
+    });
   });
 };
 
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const { severity, status, tool, targetId } = req.query;
-    let filteredFindings = [...mockFindings];
+    const state = await dataStore.getState();
+    let filteredFindings = [...state.findings];
 
     if (severity) {
       filteredFindings = filteredFindings.filter((finding) => finding.severity === severity);
@@ -46,10 +58,11 @@ router.get('/', (req: Request, res: Response) => {
   }
 });
 
-router.get('/target/:targetId', (req: Request, res: Response) => {
+router.get('/target/:targetId', async (req: Request, res: Response) => {
   try {
     const { targetId } = req.params;
-    const targetFindings = mockFindings.filter((finding) => finding.targetId === targetId);
+    const state = await dataStore.getState();
+    const targetFindings = state.findings.filter((finding) => finding.targetId === targetId);
 
     res.json({
       success: true,
@@ -65,29 +78,54 @@ router.get('/target/:targetId', (req: Request, res: Response) => {
   }
 });
 
-router.get('/:id', (req: Request, res: Response) => {
-  const finding = mockFindings.find((entry) => entry.id === req.params.id);
-  if (!finding) {
-    return res.status(404).json({
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const state = await dataStore.getState();
+    const finding = state.findings.find((entry) => entry.id === req.params.id);
+    if (!finding) {
+      return res.status(404).json({
+        success: false,
+        error: 'Finding not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: finding,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({
       success: false,
-      error: 'Finding not found',
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString(),
     });
   }
-
-  return res.json({
-    success: true,
-    data: finding,
-    timestamp: new Date().toISOString(),
-  });
 });
 
-router.patch('/:id/status', (req: Request, res: Response) => {
+router.patch('/:id/status', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, justification } = req.body;
+    let updatedFinding: any = null;
+    const state = await dataStore.update((draft) => {
+      const findingIndex = draft.findings.findIndex((finding) => finding.id === id);
+      if (findingIndex === -1) {
+        return;
+      }
 
-    const findingIndex = mockFindings.findIndex((finding) => finding.id === id);
+      draft.findings[findingIndex] = {
+        ...draft.findings[findingIndex],
+        status,
+        lastUpdatedAt: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+        justification,
+      };
+      updatedFinding = draft.findings[findingIndex];
+    });
+
+    const findingIndex = state.findings.findIndex((finding) => finding.id === id);
     if (findingIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -96,16 +134,11 @@ router.patch('/:id/status', (req: Request, res: Response) => {
       });
     }
 
-    mockFindings[findingIndex] = {
-      ...mockFindings[findingIndex],
-      status,
-      lastUpdatedAt: new Date().toISOString(),
-      justification,
-    };
+    await dataStore.appendAuditLog('finding.status.updated', 'finding', id, { status, justification });
 
     return res.json({
       success: true,
-      data: mockFindings[findingIndex],
+      data: updatedFinding,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

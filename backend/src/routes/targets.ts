@@ -1,34 +1,52 @@
 import { Router, type Request, type Response } from 'express';
+import { dataStore } from '../services/dataStore.js';
 
 const router = Router();
-const mockTargets: any[] = [];
 
-router.get('/', (_req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: mockTargets,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-router.get('/:id', (req: Request, res: Response) => {
-  const target = mockTargets.find((entry) => entry.id === req.params.id);
-  if (!target) {
-    return res.status(404).json({
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const state = await dataStore.getState();
+    res.json({
+      success: true,
+      data: state.targets,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
       success: false,
-      error: 'Target not found',
+      error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString(),
     });
   }
-
-  return res.json({
-    success: true,
-    data: target,
-    timestamp: new Date().toISOString(),
-  });
 });
 
-router.post('/', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const state = await dataStore.getState();
+    const target = state.targets.find((entry) => entry.id === req.params.id);
+    if (!target) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target not found',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: target,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, type, identifiers, riskTier, tags } = req.body;
 
@@ -50,7 +68,10 @@ router.post('/', (req: Request, res: Response) => {
       tags: tags || [],
     };
 
-    mockTargets.push(newTarget);
+    await dataStore.update((draft) => {
+      draft.targets.push(newTarget);
+    });
+    await dataStore.appendAuditLog('target.created', 'target', newTarget.id, { name, type });
 
     return res.status(201).json({
       success: true,
@@ -66,9 +87,25 @@ router.post('/', (req: Request, res: Response) => {
   }
 });
 
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const targetIndex = mockTargets.findIndex((entry) => entry.id === req.params.id);
+    let updatedTarget: any = null;
+    const state = await dataStore.update((draft) => {
+      const targetIndex = draft.targets.findIndex((entry) => entry.id === req.params.id);
+      if (targetIndex === -1) {
+        return;
+      }
+
+      draft.targets[targetIndex] = {
+        ...draft.targets[targetIndex],
+        ...req.body,
+        id: req.params.id,
+      };
+
+      updatedTarget = draft.targets[targetIndex];
+    });
+
+    const targetIndex = state.targets.findIndex((entry) => entry.id === req.params.id);
     if (targetIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -77,15 +114,11 @@ router.put('/:id', (req: Request, res: Response) => {
       });
     }
 
-    mockTargets[targetIndex] = {
-      ...mockTargets[targetIndex],
-      ...req.body,
-      id: req.params.id,
-    };
+    await dataStore.appendAuditLog('target.updated', 'target', req.params.id, req.body);
 
     return res.json({
       success: true,
-      data: mockTargets[targetIndex],
+      data: updatedTarget,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -97,9 +130,10 @@ router.put('/:id', (req: Request, res: Response) => {
   }
 });
 
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const targetIndex = mockTargets.findIndex((entry) => entry.id === req.params.id);
+    const state = await dataStore.getState();
+    const targetIndex = state.targets.findIndex((entry) => entry.id === req.params.id);
     if (targetIndex === -1) {
       return res.status(404).json({
         success: false,
@@ -108,7 +142,10 @@ router.delete('/:id', (req: Request, res: Response) => {
       });
     }
 
-    mockTargets.splice(targetIndex, 1);
+    await dataStore.update((draft) => {
+      draft.targets = draft.targets.filter((entry) => entry.id !== req.params.id);
+    });
+    await dataStore.appendAuditLog('target.deleted', 'target', req.params.id);
 
     return res.json({
       success: true,

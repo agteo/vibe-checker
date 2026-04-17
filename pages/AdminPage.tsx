@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { AuditLog } from '../types';
+import { useAdminSettings } from '../src/hooks/useApi';
 
 interface AdminPageProps {
     auditLogs: AuditLog[];
@@ -8,6 +9,18 @@ interface AdminPageProps {
 
 export const AdminPage: React.FC<AdminPageProps> = ({ auditLogs }) => {
     const [activeTab, setActiveTab] = useState<'audit' | 'settings'>('audit');
+    const { settings, loading, error, saveSettings } = useAdminSettings();
+    const [draftSettings, setDraftSettings] = useState({
+        dataRetentionDays: 90,
+        scanConcurrencyCap: 5,
+        defaultRateLimit: 100,
+    });
+
+    React.useEffect(() => {
+        if (settings) {
+            setDraftSettings(settings);
+        }
+    }, [settings]);
 
     const AuditLogTable: React.FC = () => (
         <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden">
@@ -36,18 +49,47 @@ export const AdminPage: React.FC<AdminPageProps> = ({ auditLogs }) => {
     
     const SettingsForm: React.FC = () => (
         <div className="bg-gray-800 rounded-xl shadow-lg p-8">
-            <form className="space-y-6 max-w-lg">
+            <form
+                className="space-y-6 max-w-lg"
+                onSubmit={async (event) => {
+                    event.preventDefault();
+                    try {
+                        await saveSettings(draftSettings);
+                        window.addNotification?.('Admin settings saved.', 'success');
+                    } catch (saveError) {
+                        window.addNotification?.(
+                            `Failed to save settings: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`,
+                            'error'
+                        );
+                    }
+                }}
+            >
                  <div>
                     <label className="block text-sm font-medium text-gray-400 mb-2">Data Retention (days)</label>
-                    <input type="number" defaultValue="90" className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white" />
+                    <input
+                        type="number"
+                        value={draftSettings.dataRetentionDays}
+                        onChange={(event) => setDraftSettings((prev) => ({ ...prev, dataRetentionDays: Number(event.target.value) }))}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white"
+                    />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-400 mb-2">Scan Concurrency Cap</label>
-                    <input type="number" defaultValue="5" className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white" />
+                    <input
+                        type="number"
+                        value={draftSettings.scanConcurrencyCap}
+                        onChange={(event) => setDraftSettings((prev) => ({ ...prev, scanConcurrencyCap: Number(event.target.value) }))}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white"
+                    />
                 </div>
                  <div>
                     <label className="block text-sm font-medium text-gray-400 mb-2">Default Rate Limit (req/min)</label>
-                    <input type="number" defaultValue="100" className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white" />
+                    <input
+                        type="number"
+                        value={draftSettings.defaultRateLimit}
+                        onChange={(event) => setDraftSettings((prev) => ({ ...prev, defaultRateLimit: Number(event.target.value) }))}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg p-2 text-white"
+                    />
                 </div>
                  <div className="flex justify-start pt-4">
                     <button type="submit" className="bg-primary hover:bg-primary-hover text-white font-bold py-2 px-6 rounded-lg">
@@ -61,6 +103,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ auditLogs }) => {
     return (
         <div>
             <h1 className="text-3xl font-bold text-white mb-8">Admin</h1>
+
+            {loading && <div className="text-gray-400 mb-4">Loading admin settings...</div>}
+            {error && <div className="text-red-400 mb-4">Failed to load admin settings: {error}</div>}
 
             <div className="flex border-b border-gray-700 mb-8">
                 <button

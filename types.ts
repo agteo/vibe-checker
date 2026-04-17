@@ -127,17 +127,31 @@ export interface ActionStep {
 
 export interface ScanJob {
   id: string;
+  jobId?: string;
   targetId: string;
   policyId: string;
   status: JobStatus;
   startedAt: string;
   finishedAt?: string;
+  tools?: string[];
+  estimatedDuration?: number;
+  message?: string;
+  findings?: Finding[];
+  summary?: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
 }
 
 export interface AuditLog {
   id: string;
+  actorUserId?: string;
   action: string;
   entityType: string;
   entityId: string;
   timestamp: string;
+  metadata?: Record<string, unknown>;
 }

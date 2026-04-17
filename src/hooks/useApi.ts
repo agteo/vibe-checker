@@ -33,7 +33,7 @@ export function useApi<T>(
 }
 
 export function useScans() {
-  const { activeScans, addScan, updateScan, removeScan } = useScanStore();
+  const { activeScans, addScan, updateScan, removeScan, setActiveScans } = useScanStore();
 
   const startScan = useCallback(async (request: any) => {
     try {
@@ -85,7 +85,12 @@ export function useScans() {
     startScan,
     cancelScan,
     refreshScanStatus,
+    setActiveScans,
   };
+}
+
+export function useScanHistory() {
+  return useApi(() => apiClient.getScans(), []);
 }
 
 export function useTargets() {
@@ -257,5 +262,53 @@ export function usePolicies() {
     updatePolicy,
     deletePolicy,
     refetch: fetchPolicies,
+  };
+}
+
+export function useAuditLogs() {
+  return useApi(() => apiClient.getAuditLogs(), []);
+}
+
+export function useAdminSettings() {
+  const [settings, setSettings] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const response = await apiClient.getAdminSettings();
+
+    if (response.success) {
+      setSettings(response.data);
+    } else {
+      setError(response.error || 'Failed to fetch settings');
+    }
+
+    setLoading(false);
+  }, []);
+
+  const saveSettings = useCallback(async (nextSettings: any) => {
+    const response = await apiClient.updateAdminSettings(nextSettings);
+
+    if (response.success) {
+      setSettings(response.data);
+      return response.data;
+    }
+
+    throw new Error(response.error || 'Failed to save settings');
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  return {
+    settings,
+    loading,
+    error,
+    saveSettings,
+    refetch: fetchSettings,
   };
 }

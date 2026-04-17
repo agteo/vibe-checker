@@ -14,10 +14,18 @@ export interface ScanRequest {
 }
 
 export interface ScanJobResponse {
+  id?: string;
   jobId: string;
   status: string;
+  targetId?: string;
+  policyId?: string;
+  startedAt?: string;
+  finishedAt?: string;
   estimatedDuration?: number;
   tools: string[];
+  message?: string;
+  findings?: any[];
+  summary?: any;
 }
 
 export interface FindingFilters {
@@ -25,6 +33,21 @@ export interface FindingFilters {
   status?: string;
   tool?: string;
   targetId?: string;
+}
+
+export interface AdminSettings {
+  dataRetentionDays: number;
+  scanConcurrencyCap: number;
+  defaultRateLimit: number;
+}
+
+export interface AuditLogResponse {
+  id: string;
+  actorUserId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  timestamp: string;
 }
 
 class ApiClient {
@@ -91,6 +114,10 @@ class ApiClient {
     });
   }
 
+  async getScans(): Promise<ApiResponse<ScanJobResponse[]>> {
+    return this.request<ScanJobResponse[]>('/api/scans');
+  }
+
   // Data Management
   async getTargets(): Promise<ApiResponse<any[]>> {
     return this.request<any[]>('/api/targets');
@@ -151,6 +178,21 @@ class ApiClient {
   async deletePolicy(policyId: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/api/policies/${policyId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async getAuditLogs(): Promise<ApiResponse<AuditLogResponse[]>> {
+    return this.request<AuditLogResponse[]>('/api/admin/audit-logs');
+  }
+
+  async getAdminSettings(): Promise<ApiResponse<AdminSettings>> {
+    return this.request<AdminSettings>('/api/admin/settings');
+  }
+
+  async updateAdminSettings(settings: AdminSettings): Promise<ApiResponse<AdminSettings>> {
+    return this.request<AdminSettings>('/api/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
     });
   }
 

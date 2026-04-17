@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 interface ScanJob {
   jobId: string;
-  status: 'running' | 'completed' | 'failed' | 'queued';
+  status: 'running' | 'completed' | 'failed' | 'queued' | 'cancelled';
   targetId: string;
   policyId: string;
   tools?: string[];
@@ -22,6 +22,7 @@ interface ScanStore {
   removeScan: (jobId: string) => void;
   clearScans: () => void;
   addToHistory: (scan: ScanJob) => void; // Add method to move completed scans to history
+  setActiveScans: (scans: ScanJob[]) => void;
 }
 
 export const useScanStore = create<ScanStore>((set) => ({
@@ -59,5 +60,9 @@ export const useScanStore = create<ScanStore>((set) => ({
   
   addToHistory: (scan) => set((state) => ({
     scanHistory: [...state.scanHistory, scan]
-  }))
+  })),
+
+  setActiveScans: (scans) => set({
+    activeScans: scans
+  })
 }));
