@@ -377,7 +377,7 @@ export class ScanExecutionService {
             pkg.isExactVersion
           );
 
-          vulnerabilities.forEach((vuln, index) => {
+          vulnerabilities.forEach((vuln: any, index: number) => {
             findings.push({
               id: `osv-finding-${Date.now()}-${pkg.name}-${index}`,
               title: vuln.summary || 'Dependency Vulnerability',
@@ -519,7 +519,7 @@ export class ScanExecutionService {
           const scanResult = await this.trivyService.scanImage(container.value);
           
           if (scanResult.vulnerabilities) {
-            scanResult.vulnerabilities.forEach((vuln, index) => {
+            scanResult.vulnerabilities.forEach((vuln: any, index: number) => {
               findings.push({
                 id: `trivy-finding-${Date.now()}-${index}`,
                 title: vuln.title || 'Container Vulnerability',

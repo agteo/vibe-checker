@@ -1,39 +1,34 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 
 const router = Router();
-
-// Mock data for now - will be replaced with database integration
 const mockTargets: any[] = [];
 
-// Get all targets
-router.get('/', (req, res) => {
+router.get('/', (_req: Request, res: Response) => {
   res.json({
     success: true,
     data: mockTargets,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Get target by ID
-router.get('/:id', (req, res) => {
-  const target = mockTargets.find(t => t.id === req.params.id);
+router.get('/:id', (req: Request, res: Response) => {
+  const target = mockTargets.find((entry) => entry.id === req.params.id);
   if (!target) {
     return res.status(404).json({
       success: false,
       error: 'Target not found',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
-  res.json({
+  return res.json({
     success: true,
     data: target,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Create new target
-router.post('/', (req, res) => {
+router.post('/', (req: Request, res: Response) => {
   try {
     const { name, type, identifiers, riskTier, tags } = req.body;
 
@@ -41,7 +36,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: name, type, identifiers',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -52,84 +47,79 @@ router.post('/', (req, res) => {
       identifiers,
       riskTier: riskTier || 'medium',
       lastScanAt: new Date().toISOString(),
-      tags: tags || []
+      tags: tags || [],
     };
 
     mockTargets.push(newTarget);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: newTarget,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Update target
-router.put('/:id', (req, res) => {
+router.put('/:id', (req: Request, res: Response) => {
   try {
-    const targetIndex = mockTargets.findIndex(t => t.id === req.params.id);
+    const targetIndex = mockTargets.findIndex((entry) => entry.id === req.params.id);
     if (targetIndex === -1) {
       return res.status(404).json({
         success: false,
         error: 'Target not found',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     mockTargets[targetIndex] = {
       ...mockTargets[targetIndex],
       ...req.body,
-      id: req.params.id // Ensure ID doesn't change
+      id: req.params.id,
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: mockTargets[targetIndex],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Delete target
-router.delete('/:id', (req, res) => {
+router.delete('/:id', (req: Request, res: Response) => {
   try {
-    const targetIndex = mockTargets.findIndex(t => t.id === req.params.id);
+    const targetIndex = mockTargets.findIndex((entry) => entry.id === req.params.id);
     if (targetIndex === -1) {
       return res.status(404).json({
         success: false,
         error: 'Target not found',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     mockTargets.splice(targetIndex, 1);
 
-    res.json({
+    return res.json({
       success: true,
       data: { deleted: true },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

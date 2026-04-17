@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Finding, ScanJob, TargetApp, RiskTier, JobStatus, FindingSeverity } from '../types';
 import { ScanProgress } from '../components/ScanProgress';
@@ -6,11 +5,11 @@ import { useScanStore } from '../src/stores/scanStore';
 import { useScans } from '../src/hooks/useApi';
 
 interface DashboardPageProps {
-    findings: Finding[];
-    scanJobs: ScanJob[];
-    targets: TargetApp[];
-    onScanComplete?: () => void;
-    onNavigateToFindings?: (filter?: { severity?: FindingSeverity; status?: string }) => void;
+  findings: Finding[];
+  scanJobs: ScanJob[];
+  targets: TargetApp[];
+  onScanComplete?: () => void;
+  onNavigateToFindings?: (filter?: { severity?: FindingSeverity; status?: string }) => void;
 }
 
 const JOB_STATUS_COLORS: { [key in JobStatus]: string } = {
@@ -22,171 +21,180 @@ const JOB_STATUS_COLORS: { [key in JobStatus]: string } = {
 };
 
 interface StatCardProps {
-    title: string;
-    value: string | number;
-    color: string;
-    onClick?: () => void;
-    clickable?: boolean;
+  title: string;
+  value: string | number;
+  color: string;
+  onClick?: () => void;
+  clickable?: boolean;
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, color, onClick, clickable = false }) => (
-    <div 
-        className={`bg-gray-800 p-6 rounded-xl shadow-lg ${clickable ? 'cursor-pointer hover:bg-gray-700 transition-colors' : ''}`}
-        onClick={onClick}
-        title={clickable ? `Click to view ${title.toLowerCase()}` : undefined}
-    >
-        <p className="text-sm font-medium text-gray-400">{title}</p>
-        <p className={`text-3xl font-bold mt-2 ${color}`}>{value}</p>
-        {clickable && (
-            <p className="text-xs text-gray-500 mt-2">Click to view details →</p>
-        )}
-    </div>
+  <div
+    className={`metric-card p-6 ${clickable ? 'cursor-pointer' : ''}`}
+    onClick={onClick}
+    title={clickable ? `Click to view ${title.toLowerCase()}` : undefined}
+  >
+    <p className="eyebrow">{title}</p>
+    <p className={`relative mt-4 text-4xl font-bold tracking-tight ${color}`}>{value}</p>
+    <p className="relative mt-3 text-sm text-slate-400">
+      {clickable ? 'Open the filtered findings view' : 'Live snapshot from current workspace data'}
+    </p>
+  </div>
 );
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ findings, scanJobs, targets, onScanComplete, onNavigateToFindings }) => {
-    const criticalFindings = findings.filter(f => f.severity === FindingSeverity.Critical).length;
-    const highRiskTargets = targets.filter(t => t.riskTier === RiskTier.High).length;
-    const runningScans = scanJobs.filter(j => j.status === JobStatus.Running).length;
-    const openFindings = findings.filter(f => f.status === 'open').length;
-    
-    const { activeScans, removeScan, clearScans, updateScan } = useScanStore();
-    const { refreshScanStatus } = useScans();
+export const DashboardPage: React.FC<DashboardPageProps> = ({
+  findings,
+  scanJobs,
+  targets,
+  onScanComplete,
+  onNavigateToFindings,
+}) => {
+  const criticalFindings = findings.filter((finding) => finding.severity === FindingSeverity.Critical).length;
+  const highRiskTargets = targets.filter((target) => target.riskTier === RiskTier.High).length;
+  const openFindings = findings.filter((finding) => finding.status === 'open').length;
 
-    // Remove any test scans on component mount
-    React.useEffect(() => {
-        activeScans.forEach(scan => {
-            if (scan.targetId === 'test-target' || scan.jobId.startsWith('test-')) {
-                removeScan(scan.jobId);
-            }
-        });
-    }, []);
+  const { activeScans, removeScan } = useScanStore();
+  const { refreshScanStatus } = useScans();
 
-    // Manual refresh function for debugging
-    const refreshAllScans = () => {
-        activeScans.forEach(scan => {
-            refreshScanStatus(scan.jobId);
-        });
-    };
+  React.useEffect(() => {
+    activeScans.forEach((scan) => {
+      if (scan.targetId === 'test-target' || scan.jobId.startsWith('test-')) {
+        removeScan(scan.jobId);
+      }
+    });
+  }, [activeScans, removeScan]);
 
-    // Force complete stuck scans
-    const forceCompleteStuckScans = () => {
-        activeScans.forEach(scan => {
-            if (scan.status === 'running' && scan.estimatedDuration) {
-                const elapsed = (Date.now() - new Date(scan.startedAt).getTime()) / 1000;
-                if (elapsed > scan.estimatedDuration + 60) { // 1 minute past estimated time
-                    console.log('Force completing stuck scan:', scan.jobId);
-                    updateScan(scan.jobId, { status: 'completed' });
-                }
-            }
-        });
-    };
+  const refreshAllScans = () => {
+    activeScans.forEach((scan) => {
+      refreshScanStatus(scan.jobId);
+    });
+  };
 
-    return (
-        <div>
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-                <div className="flex space-x-2">
-                    <button
-                        onClick={refreshAllScans}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
-                    >
-                        Refresh Scans
-                    </button>
-                    <button
-                        onClick={forceCompleteStuckScans}
-                        className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm"
-                    >
-                        Fix Stuck Scans
-                    </button>
-                </div>
+  return (
+    <div className="space-y-8">
+      <div className="panel hero-panel p-8">
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="eyebrow">Threat Posture</p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              Security operations without the generic dashboard chrome.
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
+              Watch active scans, pressure-test risky targets, and move straight from signal to action.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
+              {targets.length} targets in scope
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard 
-                    title="Open Findings" 
-                    value={openFindings} 
-                    color="text-white" 
-                    clickable={!!onNavigateToFindings && openFindings > 0}
-                    onClick={() => onNavigateToFindings?.({ status: 'open' })}
-                />
-                <StatCard 
-                    title="Critical Findings" 
-                    value={criticalFindings} 
-                    color="text-critical"
-                    clickable={!!onNavigateToFindings && criticalFindings > 0}
-                    onClick={() => onNavigateToFindings?.({ severity: FindingSeverity.Critical })}
-                />
-                <StatCard 
-                    title="High Risk Targets" 
-                    value={highRiskTargets} 
-                    color="text-high" 
-                />
-                <StatCard 
-                    title="Running Scans" 
-                    value={activeScans.length} 
-                    color="text-blue-400" 
-                />
+            <div className="rounded-full border border-orange-400/20 bg-orange-400/10 px-4 py-2 text-sm text-orange-100">
+              {activeScans.length} active scans
             </div>
-
-            {/* Active Scans Progress */}
-            <div className="mb-8">
-                <ScanProgress showDetails={true} onScanComplete={onScanComplete} showTips={true} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
-                    <h2 className="text-xl font-bold text-white mb-4">Recent Scan Jobs</h2>
-                    <ul className="space-y-3">
-                        {scanJobs.slice(0, 5).map(job => (
-                            <li key={job.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
-                                <div>
-                                    <p className="font-medium text-white">Target: {targets.find(t => t.id === job.targetId)?.name}</p>
-                                    <p className="text-sm text-gray-400">Policy: {job.policyId}</p>
-                                </div>
-                                <div className="flex items-center">
-                                    <span className={`w-3 h-3 rounded-full mr-2 ${JOB_STATUS_COLORS[job.status]}`}></span>
-                                    <span className="text-sm font-medium capitalize">{job.status}</span>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
-                    <h2 className="text-xl font-bold text-white mb-4">Recent Critical Findings</h2>
-                     <ul className="space-y-3">
-                        {findings.filter(f => f.severity === FindingSeverity.Critical).slice(0, 5).map(finding => (
-                            <li key={finding.id} className="p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700/70 transition-colors">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex-1">
-                                        <p className="font-medium text-white">{finding.title}</p>
-                                        <p className="text-sm text-gray-400 font-mono">{finding.location}</p>
-                                        {finding.description && (
-                                            <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                                {finding.description}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="ml-3 text-xs text-gray-500">
-                                        {finding.tool}
-                                    </div>
-                                </div>
-                                {finding.recommendation && (
-                                    <div className="mt-2 p-2 bg-green-900/20 border border-green-600/30 rounded text-xs">
-                                        <span className="text-green-300 font-medium">💡 </span>
-                                        <span className="text-green-200">{finding.recommendation}</span>
-                                    </div>
-                                )}
-                            </li>
-                        ))}
-                        {findings.filter(f => f.severity === FindingSeverity.Critical).length === 0 && (
-                            <li className="p-3 text-gray-500 text-center">
-                                No critical findings
-                            </li>
-                        )}
-                    </ul>
-                </div>
-            </div>
-
+          </div>
         </div>
-    );
+      </div>
+
+      <div className="flex justify-between items-center gap-4">
+        <div>
+          <p className="eyebrow">Control Room</p>
+          <h2 className="mt-2 text-2xl font-bold text-white">Dashboard</h2>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={refreshAllScans}
+            className="action-button action-button-secondary text-sm"
+          >
+            Refresh Scans
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title="Open Findings"
+          value={openFindings}
+          color="text-white"
+          clickable={!!onNavigateToFindings && openFindings > 0}
+          onClick={() => onNavigateToFindings?.({ status: 'open' })}
+        />
+        <StatCard
+          title="Critical Findings"
+          value={criticalFindings}
+          color="text-critical"
+          clickable={!!onNavigateToFindings && criticalFindings > 0}
+          onClick={() => onNavigateToFindings?.({ severity: FindingSeverity.Critical })}
+        />
+        <StatCard title="High Risk Targets" value={highRiskTargets} color="text-high" />
+        <StatCard title="Running Scans" value={activeScans.length} color="text-blue-400" />
+      </div>
+
+      <div className="panel p-4 md:p-6">
+        <ScanProgress showDetails={true} onScanComplete={onScanComplete} showTips={true} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="panel p-6">
+          <div className="mb-4">
+            <p className="eyebrow">Queue</p>
+            <h2 className="section-title mt-2 text-white">Recent Scan Jobs</h2>
+          </div>
+          <ul className="space-y-3">
+            {scanJobs.slice(0, 5).map((job) => (
+              <li key={job.id} className="flex items-center justify-between rounded-2xl border border-slate-700/60 bg-slate-800/60 p-4">
+                <div>
+                  <p className="font-medium text-white">Target: {targets.find((target) => target.id === job.targetId)?.name}</p>
+                  <p className="text-sm text-gray-400">Policy: {job.policyId}</p>
+                </div>
+                <div className="flex items-center">
+                  <span className={`w-3 h-3 rounded-full mr-2 ${JOB_STATUS_COLORS[job.status]}`}></span>
+                  <span className="text-sm font-medium capitalize">{job.status}</span>
+                </div>
+              </li>
+            ))}
+            {scanJobs.length === 0 && <li className="empty-state">No recent jobs yet. Start a scan from the targets page.</li>}
+          </ul>
+        </div>
+        <div className="panel p-6">
+          <div className="mb-4">
+            <p className="eyebrow">Priority Queue</p>
+            <h2 className="section-title mt-2 text-white">Recent Critical Findings</h2>
+          </div>
+          <ul className="space-y-3">
+            {findings
+              .filter((finding) => finding.severity === FindingSeverity.Critical)
+              .slice(0, 5)
+              .map((finding) => (
+                <li key={finding.id} className="rounded-2xl border border-rose-400/10 bg-rose-400/[0.03] p-4 transition-colors hover:bg-rose-400/[0.07]">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-medium text-white">{finding.title}</p>
+                      <p className="text-sm text-gray-400 font-mono">{finding.location}</p>
+                      {finding.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                          {finding.description}
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-3 text-xs text-gray-500">
+                      {finding.tool}
+                    </div>
+                  </div>
+                  {finding.recommendation && (
+                    <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs">
+                      <span className="text-green-300 font-medium">Tip: </span>
+                      <span className="text-green-200">{finding.recommendation}</span>
+                    </div>
+                  )}
+                </li>
+              ))}
+            {findings.filter((finding) => finding.severity === FindingSeverity.Critical).length === 0 && (
+              <li className="p-3 text-gray-500 text-center">
+                No critical findings
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
 };

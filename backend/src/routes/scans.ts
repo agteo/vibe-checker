@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { OSVService } from '../services/osvService.js';
 import { GitHubSecurityService } from '../services/snykService.js';
 import { SemgrepService } from '../services/semgrepService.js';
@@ -72,7 +72,7 @@ const zapService = new ZapService(process.env.ZAP_API_URL || 'http://zap:8080');
 const scanExecutionService = new ScanExecutionService();
 
 // Start a new scan
-router.post('/', async (req, res) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { targetId, policyId, consentAccepted, ownershipAttested, scopeSnapshot } = req.body;
 
@@ -221,7 +221,7 @@ async function executeScanInBackground(jobId: string, target: any, policy: any) 
 const scanResults = new Map();
 
 // Get scan status
-router.get('/:jobId', async (req, res) => {
+router.get('/:jobId', async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
 
@@ -253,7 +253,7 @@ router.get('/:jobId', async (req, res) => {
 });
 
 // Get detailed scan progress
-router.get('/:jobId/progress', async (req, res) => {
+router.get('/:jobId/progress', async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
 
@@ -325,7 +325,7 @@ router.get('/:jobId/progress', async (req, res) => {
 });
 
 // Cancel scan
-router.post('/:jobId/cancel', async (req, res) => {
+router.post('/:jobId/cancel', async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
 
@@ -346,7 +346,7 @@ router.post('/:jobId/cancel', async (req, res) => {
 });
 
 // Test ZAP connection
-router.get('/test/zap', async (req, res) => {
+router.get('/test/zap', async (_req: Request, res: Response) => {
   try {
     const { ZapService } = await import('../services/zapService.js');
     const zapService = new ZapService(process.env.ZAP_API_URL || 'http://zap:8080');
@@ -367,7 +367,7 @@ router.get('/test/zap', async (req, res) => {
 
 
 // Test GitHub Security connection
-router.get('/test/github', async (req, res) => {
+router.get('/test/github', async (_req: Request, res: Response) => {
   try {
     // Test with a public repository
     const advisories = await githubService.getSecurityAdvisories('facebook', 'react');
@@ -385,7 +385,7 @@ router.get('/test/github', async (req, res) => {
   }
 });
 
-router.get('/test/trivy', async (req, res) => {
+router.get('/test/trivy', async (_req: Request, res: Response) => {
   try {
     const results = await trivyService.scanImage('alpine:latest');
     res.json({

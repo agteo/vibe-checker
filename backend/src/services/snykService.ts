@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { getJson } from './httpClient.js';
 
 export class GitHubSecurityService {
   private baseUrl = 'https://api.github.com';
@@ -8,14 +8,13 @@ export class GitHubSecurityService {
     this.token = token;
   }
 
+  private getHeaders() {
+    return this.token ? { Authorization: `token ${this.token}` } : undefined;
+  }
+
   async getSecurityAdvisories(owner: string, repo: string): Promise<any[]> {
     try {
-      const headers = this.token ? { 'Authorization': `token ${this.token}` } : {};
-      const response = await axios.get(
-        `${this.baseUrl}/repos/${owner}/${repo}/security-advisories`,
-        { headers }
-      );
-      return response.data || [];
+      return await getJson(`${this.baseUrl}/repos/${owner}/${repo}/security-advisories`, this.getHeaders());
     } catch (error) {
       throw new Error(`Failed to get GitHub security advisories: ${error}`);
     }
@@ -23,12 +22,7 @@ export class GitHubSecurityService {
 
   async getDependabotAlerts(owner: string, repo: string): Promise<any[]> {
     try {
-      const headers = this.token ? { 'Authorization': `token ${this.token}` } : {};
-      const response = await axios.get(
-        `${this.baseUrl}/repos/${owner}/${repo}/dependabot/alerts`,
-        { headers }
-      );
-      return response.data || [];
+      return await getJson(`${this.baseUrl}/repos/${owner}/${repo}/dependabot/alerts`, this.getHeaders());
     } catch (error) {
       throw new Error(`Failed to get Dependabot alerts: ${error}`);
     }
@@ -36,12 +30,7 @@ export class GitHubSecurityService {
 
   async getCodeScanningAlerts(owner: string, repo: string): Promise<any[]> {
     try {
-      const headers = this.token ? { 'Authorization': `token ${this.token}` } : {};
-      const response = await axios.get(
-        `${this.baseUrl}/repos/${owner}/${repo}/code-scanning/alerts`,
-        { headers }
-      );
-      return response.data || [];
+      return await getJson(`${this.baseUrl}/repos/${owner}/${repo}/code-scanning/alerts`, this.getHeaders());
     } catch (error) {
       throw new Error(`Failed to get code scanning alerts: ${error}`);
     }
@@ -49,12 +38,7 @@ export class GitHubSecurityService {
 
   async getRepositoryVulnerabilities(owner: string, repo: string): Promise<any[]> {
     try {
-      const headers = this.token ? { 'Authorization': `token ${this.token}` } : {};
-      const response = await axios.get(
-        `${this.baseUrl}/repos/${owner}/${repo}/vulnerability-alerts`,
-        { headers }
-      );
-      return response.data || [];
+      return await getJson(`${this.baseUrl}/repos/${owner}/${repo}/vulnerability-alerts`, this.getHeaders());
     } catch (error) {
       throw new Error(`Failed to get repository vulnerabilities: ${error}`);
     }

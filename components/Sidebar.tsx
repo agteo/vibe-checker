@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Page } from '../App';
 import { DashboardIcon, TargetIcon, PolicyIcon, FindingsIcon, ReportsIcon, AdminIcon } from './icons';
@@ -6,6 +5,8 @@ import { DashboardIcon, TargetIcon, PolicyIcon, FindingsIcon, ReportsIcon, Admin
 interface SidebarProps {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const NavItem: React.FC<{
@@ -16,10 +17,10 @@ const NavItem: React.FC<{
 }> = ({ icon, label, isActive, onClick }) => (
   <li
     onClick={onClick}
-    className={`flex items-center p-3 my-1 rounded-lg cursor-pointer transition-colors ${
+    className={`flex items-center rounded-2xl px-4 py-3 transition-colors ${
       isActive
-        ? 'bg-primary text-white'
-        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+        ? 'bg-primary text-white shadow-lg shadow-orange-500/10'
+        : 'text-gray-400 hover:bg-gray-700/70 hover:text-white'
     }`}
   >
     {icon}
@@ -27,42 +28,73 @@ const NavItem: React.FC<{
   </li>
 );
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, onClose }) => {
   const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
-    { page: 'Dashboard', label: 'Dashboard', icon: <DashboardIcon className="w-6 h-6" /> },
-    { page: 'Targets', label: 'Targets', icon: <TargetIcon className="w-6 h-6" /> },
-    { page: 'Policies', label: 'Policies', icon: <PolicyIcon className="w-6 h-6" /> },
-    { page: 'Findings', label: 'Findings', icon: <FindingsIcon className="w-6 h-6" /> },
-    { page: 'Reports', label: 'Reports', icon: <ReportsIcon className="w-6 h-6" /> },
-    { page: 'Admin', label: 'Admin', icon: <AdminIcon className="w-6 h-6" /> },
+    { page: 'Dashboard', label: 'Dashboard', icon: <DashboardIcon className="h-6 w-6" /> },
+    { page: 'Targets', label: 'Targets', icon: <TargetIcon className="h-6 w-6" /> },
+    { page: 'Policies', label: 'Policies', icon: <PolicyIcon className="h-6 w-6" /> },
+    { page: 'Findings', label: 'Findings', icon: <FindingsIcon className="h-6 w-6" /> },
+    { page: 'Reports', label: 'Reports', icon: <ReportsIcon className="h-6 w-6" /> },
+    { page: 'Admin', label: 'Admin', icon: <AdminIcon className="h-6 w-6" /> },
   ];
 
   return (
-    <aside className="w-64 bg-gray-800 p-4 flex flex-col fixed top-0 left-0 h-full">
-      <div className="flex items-center mb-8">
-        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center font-bold text-lg text-white">
-          VC
+    <>
+      <div
+        className={`fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-sm transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        onClick={onClose}
+      />
+      <aside className={`app-sidebar top-0 left-0 z-40 flex h-full flex-col p-5 ${isOpen ? 'is-open' : ''}`}>
+        <div className="mb-8">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-400/30 bg-orange-500/15 font-bold text-lg text-orange-300 shadow-lg shadow-orange-500/10">
+                VC
+              </div>
+              <div>
+                <p className="eyebrow">Security Ops</p>
+                <h1 className="text-2xl font-bold text-white">Vibe Check</h1>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="text-slate-400 transition-colors hover:text-white lg:hidden"
+              onClick={onClose}
+              aria-label="Close sidebar"
+            >
+              X
+            </button>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-slate-400">
+            Run scans, triage findings, and keep your target inventory in one operator console.
+          </p>
         </div>
-        <h1 className="text-xl font-bold ml-3 text-white">Vibe Check</h1>
-      </div>
-      <nav>
-        <ul>
-          {navItems.map((item) => (
-            <NavItem
-              key={item.page}
-              icon={item.icon}
-              label={item.label}
-              isActive={currentPage === item.page}
-              onClick={() => setCurrentPage(item.page)}
-            />
-          ))}
-        </ul>
-      </nav>
-      
-      <div className="mt-auto p-4 bg-gray-700 rounded-lg">
-        <p className="text-sm text-gray-300">Vibe Check</p>
-        <p className="text-xs text-gray-400">Security Scanner</p>
-      </div>
-    </aside>
+
+        <nav>
+          <ul className="space-y-2">
+            {navItems.map((item) => (
+              <NavItem
+                key={item.page}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentPage === item.page}
+                onClick={() => {
+                  setCurrentPage(item.page);
+                  onClose();
+                }}
+              />
+            ))}
+          </ul>
+        </nav>
+
+        <div className="mt-auto rounded-3xl border border-cyan-400/15 bg-cyan-400/5 p-4">
+          <p className="eyebrow">Status</p>
+          <p className="mt-2 text-lg font-semibold text-white">Ready for live scans</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Frontend and backend can now be launched together from the repo root.
+          </p>
+        </div>
+      </aside>
+    </>
   );
 };

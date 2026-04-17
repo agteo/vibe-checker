@@ -8,17 +8,15 @@
     "start": "node dist/server.js",
     "audit": "npm audit",
     "audit:fix": "npm audit fix",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:watch": "echo \"Error: no test specified\" && exit 1"
+    "test": "tsx --test src/packageVersionService.test.ts",
+    "test:watch": "tsx watch --test src/packageVersionService.test.ts"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.22.1",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
     "dotenv": "^16.3.1",
-    "axios": "^1.6.0",
     "redis": "^4.6.10",
-    "bull": "^4.12.0",
     "uuid": "^9.0.1",
     "joi": "^17.11.0"
   },

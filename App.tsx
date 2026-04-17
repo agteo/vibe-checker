@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
 import { TargetsPage } from './pages/TargetsPage';
@@ -15,6 +15,7 @@ export type Page = 'Dashboard' | 'Targets' | 'Policies' | 'Findings' | 'Reports'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('Dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [scanJobs, setScanJobs] = useState<ScanJob[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [findingsFilter, setFindingsFilter] = useState<{ severity?: FindingSeverity; status?: string } | undefined>();
@@ -24,12 +25,16 @@ function App() {
   const { targets, loading: targetsLoading, error: targetsError } = useTargets();
   const { policies, loading: policiesLoading, error: policiesError } = usePolicies();
 
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [currentPage]);
+
   const renderPage = () => {
     // Show loading state if any data is still loading
     if (findingsLoading || targetsLoading || policiesLoading) {
       return (
         <div className="flex items-center justify-center h-64">
-          <div className="text-white text-lg">Loading...</div>
+          <div className="panel px-6 py-5 text-lg text-white">Loading security data...</div>
         </div>
       );
     }
@@ -38,7 +43,7 @@ function App() {
     if (findingsError || targetsError || policiesError) {
       return (
         <div className="flex items-center justify-center h-64">
-          <div className="text-red-400 text-lg">
+          <div className="panel px-6 py-5 text-lg text-red-300">
             Error loading data: {findingsError || targetsError || policiesError}
           </div>
         </div>
@@ -92,10 +97,32 @@ function App() {
 
   return (
     <NotificationManager>
-      <div className="bg-gray-900 text-gray-200 min-h-screen font-sans">
-        <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
-        <main className="ml-64 p-8">
-          {renderPage()}
+      <div className="app-shell">
+        <Sidebar
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
+        <main className="app-main">
+          <div className="shell-topbar">
+            <button
+              type="button"
+              className="menu-button"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <span className="font-mono text-sm">MENU</span>
+            </button>
+            <div className="flex items-center gap-3">
+              <span className="shell-chip">Ops Console</span>
+              <div className="shell-title">Vibe Check</div>
+            </div>
+          </div>
+          <div className="page-surface">
+            <div className="page-content">
+              {renderPage()}
+            </div>
+          </div>
         </main>
       </div>
     </NotificationManager>

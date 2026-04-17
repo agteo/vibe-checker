@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { getJson, postJson } from './httpClient.js';
 
 export class SemgrepService {
   private baseUrl = 'https://semgrep.dev';
@@ -8,23 +8,23 @@ export class SemgrepService {
     this.apiKey = apiKey;
   }
 
+  private getHeaders() {
+    return {
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+  }
+
   async scanRepository(repoUrl: string, ruleset: string = 'p/security-audit'): Promise<any> {
     try {
-      const response = await axios.post(
+      return await postJson(
         `${this.baseUrl}/api/v1/scans`,
         {
           repo_url: repoUrl,
-          ruleset: ruleset,
-          branch: 'main'
+          ruleset,
+          branch: 'main',
         },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
+        this.getHeaders()
       );
-      return response.data;
     } catch (error) {
       throw new Error(`Semgrep scan failed: ${error}`);
     }
@@ -32,15 +32,11 @@ export class SemgrepService {
 
   async getScanResults(scanId: string): Promise<any[]> {
     try {
-      const response = await axios.get(
+      const response = await getJson<{ results?: any[] }>(
         `${this.baseUrl}/api/v1/scans/${scanId}/results`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`
-          }
-        }
+        this.getHeaders()
       );
-      return response.data.results || [];
+      return response.results || [];
     } catch (error) {
       throw new Error(`Failed to get Semgrep results: ${error}`);
     }
@@ -48,15 +44,7 @@ export class SemgrepService {
 
   async getScanStatus(scanId: string): Promise<any> {
     try {
-      const response = await axios.get(
-        `${this.baseUrl}/api/v1/scans/${scanId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`
-          }
-        }
-      );
-      return response.data;
+      return await getJson(`${this.baseUrl}/api/v1/scans/${scanId}`, this.getHeaders());
     } catch (error) {
       throw new Error(`Failed to get Semgrep scan status: ${error}`);
     }

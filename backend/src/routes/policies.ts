@@ -1,8 +1,7 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 
 const router = Router();
 
-// Mock data for now - will be replaced with database integration
 const mockPolicies = [
   {
     id: 'policy-default-safe',
@@ -12,7 +11,7 @@ const mockPolicies = [
     spiderDepth: 5,
     allowedTools: ['ZAP', 'OSV'],
     description: 'Comprehensive security scan with moderate speed. Best for production applications. Non-intrusive passive scanning only.',
-    exclusions: []
+    exclusions: [],
   },
   {
     id: 'policy-quick-scan',
@@ -22,7 +21,7 @@ const mockPolicies = [
     spiderDepth: 1,
     allowedTools: ['ZAP', 'OSV'],
     description: 'Faster scan with basic coverage. Good for development and testing. Non-intrusive passive scanning only.',
-    exclusions: []
+    exclusions: [],
   },
   {
     id: 'policy-comprehensive',
@@ -32,7 +31,7 @@ const mockPolicies = [
     spiderDepth: 10,
     allowedTools: ['ZAP', 'OSV'],
     description: 'Thorough security analysis with deep crawling. Recommended for critical applications. Non-intrusive passive scanning only.',
-    exclusions: []
+    exclusions: [],
   },
   {
     id: 'policy-dependency-only',
@@ -42,7 +41,7 @@ const mockPolicies = [
     spiderDepth: 1,
     allowedTools: ['OSV'],
     description: 'Quick dependency vulnerability check only. Fastest option for package scanning.',
-    exclusions: []
+    exclusions: [],
   },
   {
     id: 'policy-passive-only',
@@ -52,47 +51,44 @@ const mockPolicies = [
     spiderDepth: 5,
     allowedTools: ['ZAP', 'OSV'],
     description: 'Non-intrusive scan using spider and passive scanning only. Safe for production environments. No active vulnerability testing.',
-    exclusions: []
-  }
+    exclusions: [],
+  },
 ];
 
-// Get all policies
-router.get('/', (req, res) => {
+router.get('/', (_req: Request, res: Response) => {
   res.json({
     success: true,
     data: mockPolicies,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Get policy by ID
-router.get('/:id', (req, res) => {
-  const policy = mockPolicies.find(p => p.id === req.params.id);
+router.get('/:id', (req: Request, res: Response) => {
+  const policy = mockPolicies.find((entry) => entry.id === req.params.id);
   if (!policy) {
     return res.status(404).json({
       success: false,
       error: 'Policy not found',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
-  res.json({
+  return res.json({
     success: true,
     data: policy,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Create new policy
-router.post('/', (req, res) => {
+router.post('/', (req: Request, res: Response) => {
   try {
-    const { name, mode, maxReqPerMin, spiderDepth, allowedTools, exclusions } = req.body;
+    const { name, mode, maxReqPerMin, spiderDepth, allowedTools, exclusions, description } = req.body;
 
     if (!name || !mode || !allowedTools || !Array.isArray(allowedTools)) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: name, mode, allowedTools',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -103,84 +99,80 @@ router.post('/', (req, res) => {
       maxReqPerMin: maxReqPerMin || 100,
       spiderDepth: spiderDepth || 3,
       allowedTools,
-      exclusions: exclusions || []
+      description: description || 'Custom passive scan policy.',
+      exclusions: exclusions || [],
     };
 
     mockPolicies.push(newPolicy);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: newPolicy,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Update policy
-router.put('/:id', (req, res) => {
+router.put('/:id', (req: Request, res: Response) => {
   try {
-    const policyIndex = mockPolicies.findIndex(p => p.id === req.params.id);
+    const policyIndex = mockPolicies.findIndex((entry) => entry.id === req.params.id);
     if (policyIndex === -1) {
       return res.status(404).json({
         success: false,
         error: 'Policy not found',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     mockPolicies[policyIndex] = {
       ...mockPolicies[policyIndex],
       ...req.body,
-      id: req.params.id // Ensure ID doesn't change
+      id: req.params.id,
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: mockPolicies[policyIndex],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-// Delete policy
-router.delete('/:id', (req, res) => {
+router.delete('/:id', (req: Request, res: Response) => {
   try {
-    const policyIndex = mockPolicies.findIndex(p => p.id === req.params.id);
+    const policyIndex = mockPolicies.findIndex((entry) => entry.id === req.params.id);
     if (policyIndex === -1) {
       return res.status(404).json({
         success: false,
         error: 'Policy not found',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     mockPolicies.splice(policyIndex, 1);
 
-    res.json({
+    return res.json({
       success: true,
       data: { deleted: true },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });

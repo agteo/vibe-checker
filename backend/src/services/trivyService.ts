@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { getJson, postJson } from './httpClient.js';
 
 export class TrivyService {
   private baseUrl: string;
@@ -9,10 +9,7 @@ export class TrivyService {
 
   async scanImage(imageName: string): Promise<any> {
     try {
-      const response = await axios.post(`${this.baseUrl}/scan/image`, {
-        image: imageName
-      });
-      return response.data;
+      return await postJson(`${this.baseUrl}/scan/image`, { image: imageName });
     } catch (error) {
       throw new Error(`Trivy image scan failed: ${error}`);
     }
@@ -20,21 +17,15 @@ export class TrivyService {
 
   async scanRepository(repoUrl: string): Promise<any> {
     try {
-      const response = await axios.post(`${this.baseUrl}/scan/repo`, {
-        repo: repoUrl
-      });
-      return response.data;
+      return await postJson(`${this.baseUrl}/scan/repo`, { repo: repoUrl });
     } catch (error) {
       throw new Error(`Trivy repository scan failed: ${error}`);
     }
   }
 
-  async scanFileSystem(path: string): Promise<any> {
+  async scanFileSystem(targetPath: string): Promise<any> {
     try {
-      const response = await axios.post(`${this.baseUrl}/scan/filesystem`, {
-        path: path
-      });
-      return response.data;
+      return await postJson(`${this.baseUrl}/scan/filesystem`, { path: targetPath });
     } catch (error) {
       throw new Error(`Trivy filesystem scan failed: ${error}`);
     }
@@ -42,8 +33,7 @@ export class TrivyService {
 
   async getScanResults(scanId: string): Promise<any> {
     try {
-      const response = await axios.get(`${this.baseUrl}/scan/${scanId}/results`);
-      return response.data;
+      return await getJson(`${this.baseUrl}/scan/${scanId}/results`);
     } catch (error) {
       throw new Error(`Failed to get Trivy scan results: ${error}`);
     }

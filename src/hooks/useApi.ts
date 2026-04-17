@@ -36,11 +36,8 @@ export function useScans() {
   const { activeScans, addScan, updateScan, removeScan } = useScanStore();
 
   const startScan = useCallback(async (request: any) => {
-    console.log('useScans: Starting scan with request:', request);
-    
     try {
       const response = await apiClient.startScan(request);
-      console.log('useScans: API response:', response);
       
       if (response.success && response.data) {
         addScan(response.data);
@@ -67,44 +64,27 @@ export function useScans() {
   }, [removeScan]);
 
   const refreshScanStatus = useCallback(async (jobId: string) => {
-    console.log('Refreshing scan status for:', jobId);
     const response = await apiClient.getScanStatus(jobId);
     
     if (response.success && response.data) {
-      console.log('Scan status response:', response.data);
-      // Update the scan with the complete data from backend
       updateScan(jobId, {
         status: response.data.status,
         finishedAt: response.data.finishedAt,
         findings: response.data.findings,
-        summary: response.data.summary
+        summary: response.data.summary,
+        message: response.data.message,
+        estimatedDuration: response.data.estimatedDuration,
       });
-    } else {
-      console.error('Failed to refresh scan status:', response.error);
     }
     
     return response.data;
   }, [updateScan]);
-
-  const getScanProgress = useCallback(async (jobId: string) => {
-    console.log('Getting detailed scan progress for:', jobId);
-    const response = await apiClient.getScanProgress(jobId);
-    
-    if (response.success && response.data) {
-      console.log('Scan progress response:', response.data);
-      return response.data;
-    } else {
-      console.error('Failed to get scan progress:', response.error);
-      return null;
-    }
-  }, []);
 
   return {
     activeScans,
     startScan,
     cancelScan,
     refreshScanStatus,
-    getScanProgress,
   };
 }
 

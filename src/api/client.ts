@@ -164,4 +164,8 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(process.env.REACT_APP_API_URL || 'http://localhost:3001');
+const apiBaseUrl =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
+  'http://localhost:3001';
+
+export const apiClient = new ApiClient(apiBaseUrl);

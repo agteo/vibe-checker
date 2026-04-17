@@ -6,6 +6,9 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vibe Check: Security Orchestration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -21,14 +24,18 @@
               'gray-300': '#cccccc',
               'gray-200': '#eeeeee',
               'gray-100': '#f4f4f4',
-              'primary': '#4f46e5',
-              'primary-hover': '#4338ca',
-              'critical': '#ef4444',
-              'high': '#f97316',
-              'medium': '#eab308',
-              'low': '#3b82f6',
-              'info': '#6b7280',
+              'primary': '#f97316',
+              'primary-hover': '#ea580c',
+              'critical': '#fb7185',
+              'high': '#f59e0b',
+              'medium': '#facc15',
+              'low': '#38bdf8',
+              'info': '#94a3b8',
             },
+            fontFamily: {
+              sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+              mono: ['IBM Plex Mono', 'monospace'],
+            }
           },
         },
       }
@@ -43,7 +50,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-gray-900 text-gray-200">
     <div id="root"></div>

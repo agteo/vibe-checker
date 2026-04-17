@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { getJson } from './httpClient.js';
 
 export class ZapService {
   private baseUrl: string;
@@ -11,27 +11,26 @@ export class ZapService {
 
   async startSpider(targetUrl: string): Promise<string> {
     try {
-      console.log(`Starting ZAP spider for: ${targetUrl}`);
-      const response = await axios.get(`${this.baseUrl}/JSON/spider/action/scan/?url=${targetUrl}`);
-      return response.data.scan;
+      const response = await getJson<{ scan: string }>(
+        `${this.baseUrl}/JSON/spider/action/scan/?url=${encodeURIComponent(targetUrl)}`
+      );
+      return response.scan;
     } catch (error) {
       throw new Error(`ZAP spider failed: ${error}`);
     }
   }
 
-  async getSpiderStatus(scanId: string): Promise<any> {
+  async getSpiderStatus(scanId: string): Promise<{ status: string }> {
     try {
-      const response = await axios.get(`${this.baseUrl}/JSON/spider/view/status/?scanId=${scanId}`);
-      return response.data;
+      return await getJson(`${this.baseUrl}/JSON/spider/view/status/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP spider status: ${error}`);
     }
   }
 
-  async getSpiderProgress(scanId: string): Promise<any> {
+  async getSpiderProgress(scanId: string): Promise<{ results?: string[] }> {
     try {
-      const response = await axios.get(`${this.baseUrl}/JSON/spider/view/results/?scanId=${scanId}`);
-      return response.data;
+      return await getJson(`${this.baseUrl}/JSON/spider/view/results/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP spider progress: ${error}`);
     }
@@ -39,27 +38,26 @@ export class ZapService {
 
   async startActiveScan(targetUrl: string): Promise<string> {
     try {
-      console.log(`Starting ZAP active scan for: ${targetUrl}`);
-      const response = await axios.get(`${this.baseUrl}/JSON/ascan/action/scan/?url=${targetUrl}`);
-      return response.data.scan;
+      const response = await getJson<{ scan: string }>(
+        `${this.baseUrl}/JSON/ascan/action/scan/?url=${encodeURIComponent(targetUrl)}`
+      );
+      return response.scan;
     } catch (error) {
       throw new Error(`ZAP active scan failed: ${error}`);
     }
   }
 
-  async getActiveScanStatus(scanId: string): Promise<any> {
+  async getActiveScanStatus(scanId: string): Promise<{ status: string }> {
     try {
-      const response = await axios.get(`${this.baseUrl}/JSON/ascan/view/status/?scanId=${scanId}`);
-      return response.data;
+      return await getJson(`${this.baseUrl}/JSON/ascan/view/status/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP active scan status: ${error}`);
     }
   }
 
-  async getActiveScanProgress(scanId: string): Promise<any> {
+  async getActiveScanProgress(scanId: string): Promise<{ rulesCompleted?: number }> {
     try {
-      const response = await axios.get(`${this.baseUrl}/JSON/ascan/view/scanProgress/?scanId=${scanId}`);
-      return response.data;
+      return await getJson(`${this.baseUrl}/JSON/ascan/view/scanProgress/?scanId=${scanId}`);
     } catch (error) {
       throw new Error(`Failed to get ZAP active scan progress: ${error}`);
     }
@@ -67,8 +65,10 @@ export class ZapService {
 
   async getScanProgress(scanId: string, scanType: 'spider' | 'active'): Promise<any> {
     try {
-      let status, progress, urlsDiscovered = 0, rulesCompleted = 0;
-      
+      let status: { status: string };
+      let urlsDiscovered = 0;
+      let rulesCompleted = 0;
+
       if (scanType === 'spider') {
         status = await this.getSpiderStatus(scanId);
         const progressData = await this.getSpiderProgress(scanId);
@@ -80,22 +80,21 @@ export class ZapService {
       }
 
       return {
-        progress: parseInt(status.status) || 0,
+        progress: parseInt(status.status, 10) || 0,
         urlsDiscovered,
         rulesCompleted,
         scanType,
-        scanId
+        scanId,
       };
     } catch (error) {
       throw new Error(`Failed to get scan progress: ${error}`);
     }
   }
 
-
   async getAlerts(): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.baseUrl}/JSON/core/view/alerts/`);
-      return response.data.alerts || [];
+      const response = await getJson<{ alerts?: any[] }>(`${this.baseUrl}/JSON/core/view/alerts/`);
+      return response.alerts || [];
     } catch (error) {
       throw new Error(`Failed to get ZAP alerts: ${error}`);
     }
@@ -103,50 +102,54 @@ export class ZapService {
 
   async getSpiderResults(): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.baseUrl}/JSON/spider/view/results/`);
-      return response.data.results || [];
+      const response = await getJson<{ results?: any[] }>(`${this.baseUrl}/JSON/spider/view/results/`);
+      return response.results || [];
     } catch (error) {
       throw new Error(`Failed to get ZAP spider results: ${error}`);
     }
   }
 
+  async accessUrl(targetUrl: string): Promise<void> {
+    try {
+      await getJson(`${this.baseUrl}/JSON/core/action/accessUrl/?url=${encodeURIComponent(targetUrl)}`);
+    } catch (error) {
+      throw new Error(`Failed to access URL in ZAP: ${error}`);
+    }
+  }
+
   async generateReport(format: 'JSON' | 'HTML' | 'XML' = 'JSON'): Promise<any> {
     try {
-      const response = await axios.get(`${this.baseUrl}/OTHER/core/other/report/?format=${format}`);
-      return response.data;
+      return await getJson(`${this.baseUrl}/OTHER/core/other/report/?format=${format}`);
     } catch (error) {
       throw new Error(`Failed to generate ZAP report: ${error}`);
     }
   }
 
-  async waitForScanCompletion(scanId: string, scanType: 'spider' | 'active', maxWaitTime: number = 300000): Promise<void> {
+  async waitForScanCompletion(
+    scanId: string,
+    scanType: 'spider' | 'active',
+    maxWaitTime: number = 300000
+  ): Promise<void> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < maxWaitTime) {
       try {
-        let status;
-        if (scanType === 'spider') {
-          status = await this.getSpiderStatus(scanId);
-        } else if (scanType === 'active') {
-          status = await this.getActiveScanStatus(scanId);
-        }
+        const status = scanType === 'spider'
+          ? await this.getSpiderStatus(scanId)
+          : await this.getActiveScanStatus(scanId);
 
-        const progress = parseInt(status.status);
-        console.log(`${scanType} scan progress: ${progress}%`);
-
+        const progress = parseInt(status.status, 10);
         if (progress >= 100) {
-          console.log(`${scanType} scan completed`);
           return;
         }
 
-        // Wait 5 seconds before checking again
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       } catch (error) {
         console.error(`Error checking ${scanType} scan status:`, error);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 5000));
       }
     }
-    
+
     throw new Error(`${scanType} scan timed out after ${maxWaitTime / 1000} seconds`);
   }
 }

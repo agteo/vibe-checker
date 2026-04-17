@@ -96,13 +96,13 @@ export class PackageVersionService {
         // Extract all packages from lockfile
         if (lockfileContent.packages) {
           // npm v7+ format (packages object)
-          for (const [pkgPath, pkgData] of Object.entries(lockfileContent.packages)) {
+          for (const [pkgPath, pkgData] of Object.entries(lockfileContent.packages as Record<string, { version?: string }>)) {
             if (pkgData && typeof pkgData === 'object' && 'version' in pkgData) {
               const pkgName = pkgPath === '' ? lockfileContent.name : this.extractPackageNameFromPath(pkgPath);
               if (pkgName && pkgData.version) {
                 packages.push({
                   name: pkgName,
-                  version: pkgData.version,
+                  version: String(pkgData.version),
                   ecosystem: 'npm',
                   isDirect: directDeps.has(pkgName),
                   source: 'lockfile'
